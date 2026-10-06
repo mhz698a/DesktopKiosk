@@ -117,6 +117,10 @@ LRESULT CALLBACK SessionWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARA
         {
             KillTimer(hwnd, 1);
 
+            if (g_sessionFont) { DeleteObject(g_sessionFont); g_sessionFont = nullptr; }
+            if (g_sessionTitleFont) { DeleteObject(g_sessionTitleFont); g_sessionTitleFont = nullptr; }
+            if (g_sessionTimeFont) { DeleteObject(g_sessionTimeFont); g_sessionTimeFont = nullptr; }
+
             g_sessionTimeLabel = nullptr;
             g_sessionPcLabel   = nullptr;
             g_sessionIpLabel   = nullptr;
