@@ -56,35 +56,6 @@ void CloseKiosk()
         PostMessageW(g_hwnd, WM_CLOSE, 0, 0);
 }
 
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    switch (message)
-    {
-        case WM_KIOSK_UNLOCK:
-            UnlockKiosk();
-            return 0;
-
-        case WM_KIOSK_LOCK:
-            LockKiosk();
-            return 0;
-
-        case WM_KIOSK_CLOSE:
-            CloseKiosk();
-            return 0;
-
-        case WM_SIZE:
-            ResizeWebView();
-            return 0;
-
-        case WM_DESTROY:
-            g_httpServer.Stop();
-            PostQuitMessage(0);
-            return 0;
-    }
-
-    return DefWindowProcW(hwnd, message, wParam, lParam);
-}
-
 static void ConfigureFullscreenWindow(HWND hwnd)
 {
     HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
@@ -111,6 +82,45 @@ static void ConfigureFullscreenWindow(HWND hwnd)
     );
 }
 
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+        case WM_KIOSK_UNLOCK:
+            UnlockKiosk();
+            return 0;
+
+        case WM_KIOSK_LOCK:
+            LockKiosk();
+            return 0;
+
+        case WM_KIOSK_CLOSE:
+            CloseKiosk();
+            return 0;
+
+        case WM_DISPLAYCHANGE:
+            ConfigureFullscreenWindow(hwnd);
+            ResizeWebView();
+            return 0;
+
+        case WM_DPICHANGED:
+            ConfigureFullscreenWindow(hwnd);
+            ResizeWebView();
+            return 0;
+
+        case WM_SIZE:
+            ResizeWebView();
+            return 0;
+
+        case WM_DESTROY:
+            g_httpServer.Stop();
+            PostQuitMessage(0);
+            return 0;
+    }
+
+    return DefWindowProcW(hwnd, message, wParam, lParam);
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
 {
     const wchar_t CLASS_NAME[] = L"DesktopKioskWindow";
@@ -123,6 +133,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
 
     if (!RegisterClassW(&windowClass))
         return 1;
+
+    if (!RegisterSessionWindowClass(hInstance))
+    {
+        MessageBoxW(
+            nullptr,
+            L"No se pudo registrar la clase de ventana de sesión.",
+            L"DesktopKiosk",
+            MB_ICONERROR
+        );
+        return 1;
+    }
 
     g_hwnd = CreateWindowExW(
         WS_EX_APPWINDOW | WS_EX_TOPMOST,
