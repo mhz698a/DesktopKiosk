@@ -7,7 +7,7 @@
 
 // Conexión con funciones/variables externas de main.cpp
 extern HWND g_hwnd;
-void LockKiosk(); 
+void LockKiosk();
 
 // ============================================================
 // Variables privadas del módulo SessionWindow
@@ -49,13 +49,46 @@ void UpdateSessionTime()
 }
 
 // ============================================================
+// Registrar clase de ventana de sesión
+// ============================================================
+bool RegisterSessionWindowClass(HINSTANCE hInstance)
+{
+    static bool registered = false;
+
+    if (registered)
+        return true;
+
+    const wchar_t SESSION_CLASS_NAME[] = L"DesktopKioskSessionWindow";
+
+    WNDCLASSW sessionClass{};
+    sessionClass.lpfnWndProc   = SessionWindowProc;
+    sessionClass.hInstance     = hInstance;
+    sessionClass.lpszClassName = SESSION_CLASS_NAME;
+    sessionClass.hCursor       = LoadCursorW(nullptr, IDC_ARROW);
+
+    if (RegisterClassW(&sessionClass) != 0)
+    {
+        registered = true;
+        return true;
+    }
+
+    if (GetLastError() == ERROR_CLASS_ALREADY_EXISTS &&
+        GetClassInfoW(hInstance, SESSION_CLASS_NAME, &sessionClass) != 0)
+    {
+        registered = true;
+        return true;
+    }
+
+    return false;
+}
+
+// ============================================================
 // Window Procedure de la sesión
 // ============================================================
 LRESULT CALLBACK SessionWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
-
         case WM_TIMER:
         {
             if (wParam == 1) { UpdateSessionTime(); }
@@ -103,7 +136,7 @@ LRESULT CALLBACK SessionWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARA
 
                 return 0;
             }
-            
+
             break;
         }
 
@@ -130,7 +163,6 @@ LRESULT CALLBACK SessionWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARA
 
             return 0;
         }
-        
     }
 
     return DefWindowProcW(hwnd, message, wParam, lParam);
@@ -144,14 +176,6 @@ void CreateSessionWindow(HINSTANCE hInstance)
     g_sessionStart = std::chrono::steady_clock::now();
 
     const wchar_t SESSION_CLASS_NAME[] = L"DesktopKioskSessionWindow";
-
-    WNDCLASSW sessionClass = {};
-    sessionClass.lpfnWndProc   = SessionWindowProc;
-    sessionClass.hInstance     = hInstance;
-    sessionClass.lpszClassName = SESSION_CLASS_NAME;
-    sessionClass.hCursor       = LoadCursorW(nullptr, IDC_ARROW);
-
-    RegisterClassW(&sessionClass);
 
     g_sessionWindow = CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
