@@ -56,7 +56,7 @@ void CloseKiosk()
         PostMessageW(g_hwnd, WM_CLOSE, 0, 0);
 }
 
-static void ConfigureFullscreenWindow(HWND hwnd)
+static void ConfigureFullscreenWindow(HWND hwnd, bool showWindow)
 {
     HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
 
@@ -78,7 +78,7 @@ static void ConfigureFullscreenWindow(HWND hwnd)
         bounds.top,
         bounds.right - bounds.left,
         bounds.bottom - bounds.top,
-        SWP_FRAMECHANGED | SWP_SHOWWINDOW
+        SWP_FRAMECHANGED | (showWindow ? SWP_SHOWWINDOW : 0)
     );
 }
 
@@ -99,7 +99,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
             return 0;
 
         case WM_DISPLAYCHANGE:
-            ConfigureFullscreenWindow(hwnd);
+            ConfigureFullscreenWindow(hwnd, false);
             ResizeWebView();
             return 0;
 
@@ -163,7 +163,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
         return 1;
     }
 
-    ConfigureFullscreenWindow(g_hwnd);
+    ConfigureFullscreenWindow(g_hwnd, true);
     UpdateWindow(g_hwnd);
 
     InitializeWebView2(g_hwnd);
