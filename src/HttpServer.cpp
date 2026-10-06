@@ -208,7 +208,7 @@ public:
             if (handler)
                 handler(action);
 
-            SendResponse(client, BuildResponse(202, "Accepted", std::string(R"({"status":"accepted","action":")") + action + ""}"));
+            SendResponse(client, BuildResponse(202, "Accepted", "{\"status\":\"accepted\",\"action\":\"" + action + "\"}"));
             closesocket(client);
         }
     }
