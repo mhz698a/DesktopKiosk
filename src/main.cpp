@@ -104,7 +104,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
             return 0;
 
         case WM_DPICHANGED:
-            ConfigureFullscreenWindow(hwnd);
+            ConfigureFullscreenWindow(hwnd, false);
             ResizeWebView();
             return 0;
 
