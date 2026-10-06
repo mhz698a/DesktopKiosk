@@ -13,16 +13,15 @@ add_executable(DesktopKiosk WIN32
     src/SessionWindow.cpp
     src/WebViewManager.h
     src/WebViewManager.cpp
+    src/KioskMessages.h
+    src/HttpServer.h
+    src/HttpServer.cpp
 )
 
 target_compile_definitions(DesktopKiosk PRIVATE
     UNICODE
     _UNICODE
 )
-
-# ============================================================
-# WebView2 SDK
-# ============================================================
 
 set(WEBVIEW2_ROOT
     "${CMAKE_CURRENT_SOURCE_DIR}/extern/webview2/build/native"
@@ -61,24 +60,14 @@ target_link_libraries(DesktopKiosk PRIVATE
     WebView2Loader.dll.lib
 )
 
-# ============================================================
-# Copiar WebView2Loader.dll al directorio del ejecutable
-# ============================================================
-
 add_custom_command(TARGET DesktopKiosk POST_BUILD
-
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-
     "${WEBVIEW2_ARCH_DIR}/WebView2Loader.dll"
-
     "$<TARGET_FILE_DIR:DesktopKiosk>/WebView2Loader.dll"
 )
 
 add_custom_command(TARGET DesktopKiosk POST_BUILD
-
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-
     "${CMAKE_CURRENT_SOURCE_DIR}/web"
-
     "$<TARGET_FILE_DIR:DesktopKiosk>/web"
 )
