@@ -6,6 +6,7 @@
 #include <WebView2.h>
 #include <iostream>
 #include <string>
+#include <cwctype>
 
 using Microsoft::WRL::Callback;
 using Microsoft::WRL::ComPtr;
