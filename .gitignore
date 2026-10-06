@@ -1,0 +1,81 @@
+# ==========================================
+# Archivos de compilación y binarios de C++
+# ==========================================
+# Objetos y librerías estáticas/dinámicas
+*.o
+*.obj
+*.slo
+*.lo
+*.la
+*.lai
+*.a
+*.lib
+*.dll
+*.so
+*.dylib
+
+# Archivos de depuración y cabeceras precompiladas
+*.pdb
+*.ilk
+*.idb
+*.gch
+*.pch
+*.dwo
+
+# Ejecutables finales en Windows
+*.exe
+*.out
+*.app
+
+# ==========================================
+# Carpetas de compilación comunes
+# ==========================================
+build/
+Build/
+x64/
+x86/
+Debug/
+Release/
+ARM/
+ARM64/
+out/
+CMakeFiles/
+extern/
+CMakeCache.txt
+compile_commands.json
+
+# ==========================================
+# Herramientas de desarrollo (Visual Studio / VS Code / CLion)
+# ==========================================
+# Visual Studio (MSVC)
+.vs/
+*.user
+*.suo
+*.sln.docstates
+
+# Visual Studio Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# JetBrains CLion
+.idea/
+
+# ==========================================
+# Archivos del sistema operativo (Windows)
+# ==========================================
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+[Dd]esktop.ini
+*.stackdump
+$RECYCLE.BIN/
+*.lnk
+
+# ==========================================
+# Archivos utilitarios de github y planes
+# ==========================================
+*.bat
+__docs__/
