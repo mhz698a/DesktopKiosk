@@ -445,11 +445,12 @@ void HttpServer::Stop()
     {
         shutdown(m_impl->listenSocket, SD_BOTH);
         closesocket(m_impl->listenSocket);
-        m_impl->listenSocket = INVALID_SOCKET;
     }
 
     if (m_impl->acceptWorker.joinable())
         m_impl->acceptWorker.join();
+
+    m_impl->listenSocket = INVALID_SOCKET;
 
     m_impl->queueCondition.notify_all();
 
