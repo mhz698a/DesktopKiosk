@@ -6,12 +6,16 @@
 
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -19,6 +23,9 @@ namespace
 {
 constexpr size_t kMaxRequestBytes = 16 * 1024;
 constexpr char kDefaultBindAddress[] = "127.0.0.1";
+constexpr DWORD kSocketTimeoutMs = 5000;
+constexpr size_t kMaxQueuedClients = 32;
+constexpr size_t kWorkerCount = 8;
 
 std::string GetEnvironmentValue(const char* name)
 {
@@ -57,9 +64,20 @@ std::string BuildResponse(int status, const char* reason, const std::string& bod
     return response.str();
 }
 
+bool HeaderNameEquals(const std::string& actual, const std::string& expected)
+{
+    if (actual.size() != expected.size())
+        return false;
+
+    return std::equal(actual.begin(), actual.end(), expected.begin(),
+        [](unsigned char left, unsigned char right)
+        {
+            return std::tolower(left) == std::tolower(right);
+        });
+}
+
 std::string GetHeaderValue(const std::string& request, const std::string& name)
 {
-    const std::string prefix = name + ":";
     size_t start = 0;
 
     while (start < request.size())
@@ -68,13 +86,18 @@ std::string GetHeaderValue(const std::string& request, const std::string& name)
         if (end == std::string::npos)
             break;
 
-        if (request.compare(start, prefix.size(), prefix) == 0)
+        const size_t colon = request.find(':', start);
+        if (colon != std::string::npos && colon < end)
         {
-            size_t valueStart = start + prefix.size();
-            while (valueStart < end && (request[valueStart] == ' ' || request[valueStart] == '\t'))
-                ++valueStart;
+            const std::string headerName = request.substr(start, colon - start);
+            if (HeaderNameEquals(headerName, name))
+            {
+                size_t valueStart = colon + 1;
+                while (valueStart < end && (request[valueStart] == ' ' || request[valueStart] == '\t'))
+                    ++valueStart;
 
-            return request.substr(valueStart, end - valueStart);
+                return request.substr(valueStart, end - valueStart);
+            }
         }
 
         start = end + 2;
@@ -83,9 +106,31 @@ std::string GetHeaderValue(const std::string& request, const std::string& name)
     return {};
 }
 
+void ConfigureSocketTimeouts(SOCKET client)
+{
+    const DWORD timeout = kSocketTimeoutMs;
+
+    setsockopt(
+        client,
+        SOL_SOCKET,
+        SO_RCVTIMEO,
+        reinterpret_cast<const char*>(&timeout),
+        sizeof(timeout)
+    );
+
+    setsockopt(
+        client,
+        SOL_SOCKET,
+        SO_SNDTIMEO,
+        reinterpret_cast<const char*>(&timeout),
+        sizeof(timeout)
+    );
+}
+
 void SendResponse(SOCKET client, const std::string& response)
 {
     size_t sent = 0;
+
     while (sent < response.size())
     {
         const int result = send(
@@ -110,7 +155,17 @@ bool ReceiveRequest(SOCKET client, std::string& request)
     while (request.size() < kMaxRequestBytes)
     {
         const int received = recv(client, buffer, sizeof(buffer), 0);
-        if (received <= 0)
+
+        if (received == SOCKET_ERROR)
+        {
+            const int error = WSAGetLastError();
+            if (error == WSAETIMEDOUT)
+                return false;
+
+            return false;
+        }
+
+        if (received == 0)
             return false;
 
         request.append(buffer, received);
@@ -127,10 +182,110 @@ class HttpServer::Impl
 {
 public:
     SOCKET listenSocket = INVALID_SOCKET;
-    std::thread worker;
+    std::thread acceptWorker;
+    std::vector<std::thread> workers;
+    std::deque<SOCKET> clientQueue;
+    std::mutex queueMutex;
+    std::condition_variable queueCondition;
     std::atomic<bool> running{false};
     RequestHandler handler;
     std::string apiToken;
+
+    void HandleClient(SOCKET client)
+    {
+        ConfigureSocketTimeouts(client);
+
+        std::string request;
+        if (!ReceiveRequest(client, request))
+        {
+            SendResponse(client, BuildResponse(408, "Request Timeout", R"({"error":"request_timeout"})"));
+            closesocket(client);
+            return;
+        }
+
+        const size_t requestLineEnd = request.find("\r\n");
+        if (requestLineEnd == std::string::npos)
+        {
+            SendResponse(client, BuildResponse(400, "Bad Request", R"({"error":"invalid_request"})"));
+            closesocket(client);
+            return;
+        }
+
+        std::istringstream requestLine(request.substr(0, requestLineEnd));
+        std::string method;
+        std::string path;
+        std::string version;
+        requestLine >> method >> path >> version;
+
+        if (method != "POST" || version != "HTTP/1.1")
+        {
+            SendResponse(client, BuildResponse(405, "Method Not Allowed", R"({"error":"method_not_allowed"})"));
+            closesocket(client);
+            return;
+        }
+
+        const std::string authorization = GetHeaderValue(request, "Authorization");
+        const std::string expected = "Bearer " + apiToken;
+
+        if (!ConstantTimeEquals(authorization, expected))
+        {
+            SendResponse(client, BuildResponse(401, "Unauthorized", R"({"error":"unauthorized"})"));
+            closesocket(client);
+            return;
+        }
+
+        std::string action;
+        if (path == "/api/kiosk/unlock")
+            action = "unlock";
+        else if (path == "/api/kiosk/lock")
+            action = "lock";
+        else if (path == "/api/kiosk/close")
+            action = "close";
+        else
+        {
+            SendResponse(client, BuildResponse(404, "Not Found", R"({"error":"not_found"})"));
+            closesocket(client);
+            return;
+        }
+
+        if (handler)
+            handler(action);
+
+        SendResponse(
+            client,
+            BuildResponse(
+                202,
+                "Accepted",
+                "{\"status\":\"accepted\",\"action\":\"" + action + "\"}"
+            )
+        );
+
+        closesocket(client);
+    }
+
+    void ClientWorker()
+    {
+        while (true)
+        {
+            SOCKET client = INVALID_SOCKET;
+
+            {
+                std::unique_lock<std::mutex> lock(queueMutex);
+                queueCondition.wait(lock, [this]
+                {
+                    return !running || !clientQueue.empty();
+                });
+
+                if (!running)
+                    return;
+
+                client = clientQueue.front();
+                clientQueue.pop_front();
+            }
+
+            HandleClient(client);
+        }
+    }
 
     void Run()
     {
@@ -152,64 +307,31 @@ public:
                 continue;
             }
 
-            std::string request;
-            if (!ReceiveRequest(client, request))
+            if (!running)
             {
-                SendResponse(client, BuildResponse(413, "Payload Too Large", R"({"error":"request_too_large"})"));
                 closesocket(client);
-                continue;
+                break;
             }
 
-            const size_t requestLineEnd = request.find("\r\n");
-            if (requestLineEnd == std::string::npos)
+            bool queued = false;
             {
-                SendResponse(client, BuildResponse(400, "Bad Request", R"({"error":"invalid_request"})"));
-                closesocket(client);
-                continue;
+                std::lock_guard<std::mutex> lock(queueMutex);
+
+                if (clientQueue.size() < kMaxQueuedClients)
+                {
+                    clientQueue.push_back(client);
+                    queued = true;
+                }
             }
 
-            std::istringstream requestLine(request.substr(0, requestLineEnd));
-            std::string method;
-            std::string path;
-            std::string version;
-            requestLine >> method >> path >> version;
-
-            if (method != "POST" || version != "HTTP/1.1")
-            {
-                SendResponse(client, BuildResponse(405, "Method Not Allowed", R"({"error":"method_not_allowed"})"));
-                closesocket(client);
-                continue;
-            }
-
-            const std::string authorization = GetHeaderValue(request, "Authorization");
-            const std::string expected = "Bearer " + apiToken;
-
-            if (!ConstantTimeEquals(authorization, expected))
-            {
-                SendResponse(client, BuildResponse(401, "Unauthorized", R"({"error":"unauthorized"})"));
-                closesocket(client);
-                continue;
-            }
-
-            std::string action;
-            if (path == "/api/kiosk/unlock")
-                action = "unlock";
-            else if (path == "/api/kiosk/lock")
-                action = "lock";
-            else if (path == "/api/kiosk/close")
-                action = "close";
+            if (queued)
+                queueCondition.notify_one();
             else
             {
-                SendResponse(client, BuildResponse(404, "Not Found", R"({"error":"not_found"})"));
+                ConfigureSocketTimeouts(client);
+                SendResponse(client, BuildResponse(503, "Service Unavailable", R"({"error":"server_busy"})"));
                 closesocket(client);
-                continue;
             }
-
-            if (handler)
-                handler(action);
-
-            SendResponse(client, BuildResponse(202, "Accepted", "{\"status\":\"accepted\",\"action\":\"" + action + "\"}"));
-            closesocket(client);
         }
     }
 };
@@ -296,7 +418,11 @@ bool HttpServer::Start(unsigned short port, RequestHandler handler)
     }
 
     impl->running = true;
-    impl->worker = std::thread([impl]()
+
+    for (size_t i = 0; i < kWorkerCount; ++i)
+        impl->workers.emplace_back([impl]() { impl->ClientWorker(); });
+
+    impl->acceptWorker = std::thread([impl]()
     {
         impl->Run();
     });
@@ -321,8 +447,25 @@ void HttpServer::Stop()
         m_impl->listenSocket = INVALID_SOCKET;
     }
 
-    if (m_impl->worker.joinable())
-        m_impl->worker.join();
+    if (m_impl->acceptWorker.joinable())
+        m_impl->acceptWorker.join();
+
+    m_impl->queueCondition.notify_all();
+
+    for (auto& worker : m_impl->workers)
+    {
+        if (worker.joinable())
+            worker.join();
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(m_impl->queueMutex);
+        while (!m_impl->clientQueue.empty())
+        {
+            closesocket(m_impl->clientQueue.front());
+            m_impl->clientQueue.pop_front();
+        }
+    }
 
     delete m_impl;
     m_impl = nullptr;
