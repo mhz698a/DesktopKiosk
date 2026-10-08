@@ -1,4 +1,5 @@
 #include "SystemUtils.h"
+#include "resources.h"
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -98,21 +99,24 @@ std::wstring GetUserNameString()
 
 std::wstring GetWebPageUrl()
 {
-    wchar_t executablePath[MAX_PATH];
-    GetModuleFileNameW(nullptr, executablePath, MAX_PATH);
+    return L"http://127.0.0.1:7085/index.html";
+}
 
-    std::filesystem::path exePath(executablePath);
-    std::filesystem::path htmlPath = exePath.parent_path() / L"web" / L"index.html";
+std::string GetEmbeddedResource(int resourceId) {
+    // 1. Buscar el recurso dentro del propio módulo EXE
+    HRSRC hRes = FindResource(NULL, MAKEINTRESOURCE(resourceId), RT_HTML);
+    if (!hRes) return "";
 
-    wchar_t urlBuffer[2048];
-    DWORD urlLength = sizeof(urlBuffer) / sizeof(wchar_t);
+    // 2. Cargar el recurso en la memoria global
+    HGLOBAL hData = LoadResource(NULL, hRes);
+    if (!hData) return "";
 
-    HRESULT result = UrlCreateFromPathW(htmlPath.c_str(), urlBuffer, &urlLength, 0);
+    // 3. Bloquearlo para obtener el puntero directo a los bytes
+    DWORD dataSize = SizeofResource(NULL, hRes);
+    const char* pData = reinterpret_cast<const char*>(LockResource(hData));
 
-    if (FAILED(result))
-    {
-        return L"";
-    }
+    if (!pData) return "";
 
-    return std::wstring(urlBuffer);
+    // 4. Retornar los datos como un string de C++
+    return std::string(pData, dataSize);
 }

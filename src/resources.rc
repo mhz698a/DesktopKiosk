@@ -1,0 +1,6 @@
+#include "resources.h"
+
+// ID_RECURSO    TIPO_RECURSO   "Ruta relativa desde la raíz del proyecto"
+IDR_INDEX_HTML   HTML           "../web/index.html"
+IDR_STYLE_CSS    HTML           "../web/style.css"
+IDR_APP_JS       HTML           "../web/app.js"

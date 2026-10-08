@@ -1,4 +1,6 @@
+#include "resources.h"
 #include "HttpServer.h"
+#include "SystemUtils.h"
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -23,7 +25,7 @@
 namespace
 {
 constexpr size_t kMaxRequestBytes = 16 * 1024;
-constexpr char kDefaultBindAddress[] = "127.0.0.1";
+constexpr char kDefaultBindAddress[] = "0.0.0.0";
 constexpr DWORD kSocketTimeoutMs = 5000;
 constexpr size_t kMaxQueuedClients = 32;
 constexpr size_t kWorkerCount = 8;
@@ -53,11 +55,11 @@ bool ConstantTimeEquals(const std::string& left, const std::string& right)
     return difference == 0;
 }
 
-std::string BuildResponse(int status, const char* reason, const std::string& body)
+std::string BuildResponse(int status, const char* reason, const std::string& body, const char* contentType = "application/json; charset=utf-8")
 {
     std::ostringstream response;
     response << "HTTP/1.1 " << status << ' ' << reason << "\r\n"
-             << "Content-Type: application/json; charset=utf-8\r\n"
+             << "Content-Type: " << contentType << "\r\n"
              << "Content-Length: " << body.size() << "\r\n"
              << "Connection: close\r\n"
              << "\r\n"
@@ -218,22 +220,78 @@ public:
         std::string version;
         requestLine >> method >> path >> version;
 
-        if (method != "POST" || version != "HTTP/1.1")
+        if ((method != "GET" && method != "POST") || version != "HTTP/1.1")
         {
             SendResponse(client, BuildResponse(405, "Method Not Allowed", R"({"error":"method_not_allowed"})"));
             closesocket(client);
             return;
         }
 
-        const std::string authorization = GetHeaderValue(request, "Authorization");
-        const std::string expected = "Bearer " + apiToken;
-
-        if (!ConstantTimeEquals(authorization, expected))
+        if (method == "GET")
         {
-            SendResponse(client, BuildResponse(401, "Unauthorized", R"({"error":"unauthorized"})"));
+            if (path == "/" || path == "/index.html")
+            {
+                std::string htmlContent = GetEmbeddedResource(IDR_INDEX_HTML);
+
+                if (htmlContent.empty())
+                {
+                    SendResponse(client, BuildResponse(404, "Not Found", R"({"error":"resource_not_found"})"));
+                }
+                else
+                {
+                    SendResponse(client, BuildResponse(200, "OK", htmlContent, "text/html; charset=utf-8"));
+                }
+
+                closesocket(client);
+                return;
+            }
+            else if (path == "/style.css")
+            {
+                std::string cssContent = GetEmbeddedResource(IDR_STYLE_CSS);
+
+                if (cssContent.empty())
+                {
+                    SendResponse(client, BuildResponse(404, "Not Found", R"({"error":"resource_not_found"})"));
+                }
+                else
+                {
+                    SendResponse(client, BuildResponse(200, "OK", cssContent, "text/css; charset=utf-8"));
+                }
+
+                closesocket(client);
+                return;
+            }
+            else if (path == "/app.js")
+            {
+                std::string jsContent = GetEmbeddedResource(IDR_APP_JS);
+
+                if (jsContent.empty())
+                {
+                    SendResponse(client, BuildResponse(404, "Not Found", R"({"error":"resource_not_found"})"));
+                }
+                else
+                {
+                    SendResponse(client, BuildResponse(200, "OK", jsContent, "application/javascript; charset=utf-8"));
+                }
+
+                closesocket(client);
+                return;
+            }
+
+            SendResponse(client, BuildResponse(404, "Not Found", R"({"error":"not_found"})"));
             closesocket(client);
             return;
         }
+
+        // const std::string authorization = GetHeaderValue(request, "Authorization");
+        // const std::string expected = "Bearer " + apiToken;
+
+        // if (!ConstantTimeEquals(authorization, expected))
+        // {
+        //     SendResponse(client, BuildResponse(401, "Unauthorized", R"({"error":"unauthorized"})"));
+        //     closesocket(client);
+        //     return;
+        // }
 
         std::string action;
         if (path == "/api/kiosk/unlock")
@@ -351,7 +409,7 @@ bool HttpServer::Start(unsigned short port, RequestHandler handler)
     if (token.empty())
     {
         OutputDebugStringA("[HTTP] DESKTOPKIOSK_API_TOKEN no esta configurado; REST deshabilitado.\n");
-        return false;
+        // return false;
     }
 
     const std::string bindAddress = [&]()

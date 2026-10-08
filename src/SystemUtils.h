@@ -6,3 +6,4 @@ std::wstring GetComputerNameString();
 std::wstring GetIpAddress();
 std::wstring GetUserNameString();
 std::wstring GetWebPageUrl();
+std::string GetEmbeddedResource(int resourceId);
