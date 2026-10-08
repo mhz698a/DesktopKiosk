@@ -94,16 +94,29 @@ void InitializeWebView2(HWND hwnd)
 {
     g_mainHwnd = hwnd;
 
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+
+    wchar_t tempPath[MAX_PATH];
+    DWORD pathLen = GetTempPathW(MAX_PATH, tempPath);
+
+    std::wstring userDataFolder;
+    if (pathLen > 0 && pathLen < MAX_PATH)
+    {
+        userDataFolder = std::wstring(tempPath) + L"DesktopKiosk_WebView2";
+    }
+
     HRESULT result = CreateCoreWebView2EnvironmentWithOptions(
         nullptr,
-        nullptr,
+        userDataFolder.empty() ? nullptr : userDataFolder.c_str(),
         nullptr,
         Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
             [hwnd](HRESULT result, ICoreWebView2Environment* environment) -> HRESULT
             {
                 if (FAILED(result))
                 {
-                    MessageBoxW(hwnd, L"No se pudo inicializar WebView2.", L"DesktopKiosk", MB_ICONERROR);
+                    wchar_t errMsg[256];
+                    swprintf_s(errMsg, L"No se pudo inicializar WebView2. Codigo: 0x%08X", result);
+                    MessageBoxW(hwnd, errMsg, L"DesktopKiosk", MB_ICONERROR);
                     return result;
                 }
 
@@ -114,7 +127,9 @@ void InitializeWebView2(HWND hwnd)
                         {
                             if (FAILED(result))
                             {
-                                MessageBoxW(hwnd, L"No se pudo crear el controlador de WebView2.", L"DesktopKiosk", MB_ICONERROR);
+                                wchar_t errMsg[256];
+                                swprintf_s(errMsg, L"No se pudo crear el controlador de WebView2. Codigo: 0x%08X", result);
+                                MessageBoxW(hwnd, errMsg, L"DesktopKiosk", MB_ICONERROR);
                                 return result;
                             }
 
@@ -151,6 +166,8 @@ void InitializeWebView2(HWND hwnd)
 
     if (FAILED(result))
     {
-        MessageBoxW(hwnd, L"CreateCoreWebView2EnvironmentWithOptions fallo.", L"DesktopKiosk", MB_ICONERROR);
+        wchar_t errMsg[256];
+        swprintf_s(errMsg, L"CreateCoreWebView2EnvironmentWithOptions fallo. Codigo: 0x%08X", result);
+        MessageBoxW(hwnd, errMsg, L"DesktopKiosk", MB_ICONERROR);
     }
 }
