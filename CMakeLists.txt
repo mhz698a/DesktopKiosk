@@ -5,7 +5,13 @@ project(DesktopKiosk LANGUAGES CXX RC)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
+
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
 add_executable(DesktopKiosk WIN32
     src/main.cpp
@@ -63,5 +69,8 @@ target_link_libraries(DesktopKiosk PRIVATE
     ws2_32
     version
     runtimeobject
-    "${WEBVIEW2_ARCH_DIR}/WebView2LoaderStatic.lib" 
+    "${WEBVIEW2_ARCH_DIR}/WebView2LoaderStatic.lib"
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
 )
