@@ -1,17 +1,18 @@
 #pragma once
+
 #include <windows.h>
 
-// Registra la clase de ventana de sesión una sola vez durante la inicialización.
+// Registra las clases Win32 del botón circular y del panel emergente de sesión.
 bool RegisterSessionWindowClass(HINSTANCE hInstance);
 
-// Crea e inicializa la ventana flotante de sesión activa.
+// Crea el botón flotante persistente y el panel de sesión, inicialmente oculto.
 void CreateSessionWindow(HINSTANCE hInstance);
 
-// Destruye la ventana flotante cuando se vuelve a bloquear el kiosco.
+// Destruye el botón, el panel y el temporizador de la sesión actual.
 void DestroySessionWindow();
 
 // Actualiza el contador de tiempo transcurrido (HH:MM:SS).
 void UpdateSessionTime();
 
-// Manejador de eventos (Window Procedure) de la ventana flotante.
+// Manejador de eventos del panel emergente de sesión.
 LRESULT CALLBACK SessionWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
