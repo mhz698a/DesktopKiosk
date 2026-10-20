@@ -1,671 +1,322 @@
 #include "SessionWindow.h"
 #include "SystemUtils.h"
 
+#include <QApplication>
+#include <QFrame>
+#include <QGuiApplication>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QPushButton>
+#include <QScreen>
+#include <QTimer>
+#include <QVBoxLayout>
+#include <QWidget>
+
 #include <algorithm>
 #include <chrono>
-#include <cstdio>
-#include <string>
 
-extern HWND g_hwnd;
 void LockKiosk();
 
 namespace
 {
-constexpr wchar_t kSessionClassName[] = L"DesktopKioskSessionWindow";
-constexpr wchar_t kToggleClassName[] = L"DesktopKioskSessionToggleWindow";
+constexpr int kButtonWindowSize = 68;
+constexpr int kButtonSize = 60;
+constexpr int kScreenMargin = 20;
+constexpr int kPopupWidth = 330;
+constexpr int kPopupSpacing = 12;
 
-constexpr int kToggleSize = 58;
-constexpr int kPanelWidth = 350;
-constexpr int kPanelHeight = 280;
-constexpr int kScreenMargin = 18;
-constexpr UINT_PTR kSessionTimerId = 1;
-constexpr int kCloseSessionButtonId = 1001;
-
-constexpr int kHeaderLabelId = 2001;
-constexpr int kDetailsLabelId = 2002;
-constexpr int kPcLabelId = 2003;
-constexpr int kUserLabelId = 2004;
-constexpr int kIpLabelId = 2005;
-constexpr int kTimeLabelId = 2006;
-
-HWND g_sessionWindow = nullptr;
-HWND g_toggleWindow = nullptr;
-
-HWND g_sessionTimeLabel = nullptr;
-HWND g_sessionPcLabel = nullptr;
-HWND g_sessionIpLabel = nullptr;
-HWND g_sessionUserLabel = nullptr;
-HWND g_closeSessionButton = nullptr;
-
-HFONT g_sessionFont = nullptr;
-HFONT g_sessionTitleFont = nullptr;
-HFONT g_sessionTimeFont = nullptr;
-HBRUSH g_sessionBackgroundBrush = nullptr;
-
-WNDPROC g_closeButtonOriginalProc = nullptr;
-std::chrono::steady_clock::time_point g_sessionStart;
-bool g_toggleHovered = false;
-bool g_trackingMouse = false;
-
-LRESULT CALLBACK ToggleWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
-LRESULT CALLBACK SessionCloseButtonProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
-
-bool RegisterWindowClass(HINSTANCE hInstance, const wchar_t* className,
-                         WNDPROC windowProc, UINT classStyle)
+class SessionActive final
 {
-    WNDCLASSW windowClass{};
-    windowClass.style = classStyle;
-    windowClass.lpfnWndProc = windowProc;
-    windowClass.hInstance = hInstance;
-    windowClass.lpszClassName = className;
-    windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-
-    if (RegisterClassW(&windowClass) != 0)
-        return true;
-
-    if (GetLastError() != ERROR_CLASS_ALREADY_EXISTS)
-        return false;
-
-    WNDCLASSW existingClass{};
-    return GetClassInfoW(hInstance, className, &existingClass) != 0
-        && existingClass.lpfnWndProc == windowProc;
-}
-
-HWND CreateSessionLabel(HINSTANCE hInstance, HWND parent, const wchar_t* text,
-                        int controlId, int x, int y, int width, int height,
-                        HFONT font, DWORD extraStyle = SS_LEFT)
-{
-    HWND label = CreateWindowExW(
-        0,
-        L"STATIC",
-        text,
-        WS_CHILD | WS_VISIBLE | extraStyle,
-        x, y, width, height,
-        parent,
-        reinterpret_cast<HMENU>(static_cast<INT_PTR>(controlId)),
-        hInstance,
-        nullptr
-    );
-
-    if (label != nullptr && font != nullptr)
-        SendMessageW(label, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
-
-    return label;
-}
-
-void PositionSessionWindows()
-{
-    HWND monitorWindow = g_hwnd != nullptr ? g_hwnd : g_toggleWindow;
-    HMONITOR monitor = MonitorFromWindow(monitorWindow, MONITOR_DEFAULTTOPRIMARY);
-
-    MONITORINFO monitorInfo{};
-    monitorInfo.cbSize = sizeof(monitorInfo);
-
-    if (monitor == nullptr || !GetMonitorInfoW(monitor, &monitorInfo))
-        return;
-
-    const RECT bounds = monitorInfo.rcMonitor;
-    const int monitorWidth = bounds.right - bounds.left;
-    const int monitorHeight = bounds.bottom - bounds.top;
-
-    const int toggleSize = (std::min)(kToggleSize, (std::max)(32, monitorWidth - 2 * kScreenMargin));
-    const int toggleX = bounds.right - toggleSize - kScreenMargin;
-    const int toggleY = bounds.top + kScreenMargin;
-
-    if (g_toggleWindow != nullptr)
+public:
+    SessionActive()
+        : m_sessionStart(std::chrono::steady_clock::now())
     {
-        SetWindowPos(
-            g_toggleWindow,
-            HWND_TOPMOST,
-            toggleX,
-            toggleY,
-            toggleSize,
-            toggleSize,
-            SWP_NOACTIVATE | SWP_SHOWWINDOW
-        );
-
-        HRGN region = CreateEllipticRgn(0, 0, toggleSize, toggleSize);
-        if (region != nullptr)
-        {
-            if (!SetWindowRgn(g_toggleWindow, region, TRUE))
-                DeleteObject(region);
-        }
+        createWidgets();
     }
 
-    if (g_sessionWindow != nullptr)
+    ~SessionActive()
     {
-        const int panelWidth = (std::min)(kPanelWidth, (std::max)(240, monitorWidth - 2 * kScreenMargin));
-        const int panelHeight = (std::min)(kPanelHeight, (std::max)(220, monitorHeight - 2 * kScreenMargin));
+        if (m_timer != nullptr)
+            m_timer->stop();
 
-        int panelX = toggleX + toggleSize - panelWidth;
-        int panelY = toggleY + toggleSize + 10;
-
-        if (panelY + panelHeight > bounds.bottom - kScreenMargin)
-            panelY = toggleY - panelHeight - 10;
-
-        const int minX = bounds.left + kScreenMargin;
-        const int maxX = (std::max)(minX, static_cast<int>(bounds.right - panelWidth - kScreenMargin));
-        const int minY = bounds.top + kScreenMargin;
-        const int maxY = (std::max)(minY, static_cast<int>(bounds.bottom - panelHeight - kScreenMargin));
-
-        panelX = std::clamp(panelX, minX, maxX);
-        panelY = std::clamp(panelY, minY, maxY);
-
-        SetWindowPos(
-            g_sessionWindow,
-            HWND_TOPMOST,
-            panelX,
-            panelY,
-            panelWidth,
-            panelHeight,
-            SWP_NOACTIVATE
-        );
-    }
-}
-
-void ShowOrHideSessionPanel()
-{
-    if (g_sessionWindow == nullptr)
-        return;
-
-    if (IsWindowVisible(g_sessionWindow))
-    {
-        ShowWindow(g_sessionWindow, SW_HIDE);
-        return;
+        // The popup is owned by the floating button window.
+        delete m_buttonWindow;
+        m_buttonWindow = nullptr;
+        m_popup = nullptr;
+        m_timer = nullptr;
     }
 
-    PositionSessionWindows();
-    ShowWindow(g_sessionWindow, SW_SHOW);
-    SetForegroundWindow(g_sessionWindow);
-
-    if (g_closeSessionButton != nullptr)
-        SetFocus(g_closeSessionButton);
-}
-}
-
-// ============================================================
-// Actualizar el tiempo transcurrido de la sesión.
-// El temporizador sigue funcionando aunque el panel esté oculto.
-// ============================================================
-void UpdateSessionTime()
-{
-    if (g_sessionTimeLabel == nullptr)
-        return;
-
-    const auto now = std::chrono::steady_clock::now();
-    const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-        now - g_sessionStart).count();
-
-    const long long hours = elapsed / 3600;
-    const long long minutes = (elapsed % 3600) / 60;
-    const long long seconds = elapsed % 60;
-
-    wchar_t buffer[64]{};
-    swprintf_s(buffer, L"%02lld:%02lld:%02lld", hours, minutes, seconds);
-    SetWindowTextW(g_sessionTimeLabel, buffer);
-}
-
-// ============================================================
-// Registrar las clases de las dos ventanas flotantes.
-// ============================================================
-bool RegisterSessionWindowClass(HINSTANCE hInstance)
-{
-    if (!RegisterWindowClass(
-            hInstance, kSessionClassName, SessionWindowProc, CS_DROPSHADOW))
-        return false;
-
-    if (!RegisterWindowClass(
-            hInstance, kToggleClassName, ToggleWindowProc, CS_HREDRAW | CS_VREDRAW))
-        return false;
-
-    return true;
-}
-
-// ============================================================
-// Ventana del botón circular persistente.
-// ============================================================
-namespace
-{
-LRESULT CALLBACK ToggleWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    switch (message)
+    bool isValid() const
     {
-        case WM_PAINT:
+        return m_buttonWindow != nullptr
+            && m_toggleButton != nullptr
+            && m_popup != nullptr
+            && m_timeLabel != nullptr;
+    }
+
+    void updateTime()
+    {
+        if (m_timeLabel == nullptr)
+            return;
+
+        const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::steady_clock::now() - m_sessionStart).count();
+
+        const qint64 hours = static_cast<qint64>(elapsed / 3600);
+        const qint64 minutes = static_cast<qint64>((elapsed % 3600) / 60);
+        const qint64 seconds = static_cast<qint64>(elapsed % 60);
+
+        m_timeLabel->setText(
+            QStringLiteral("%1:%2:%3")
+                .arg(hours, 2, 10, QChar(u'0'))
+                .arg(minutes, 2, 10, QChar(u'0'))
+                .arg(seconds, 2, 10, QChar(u'0')));
+    }
+
+private:
+    void createWidgets()
+    {
+        m_buttonWindow = new QWidget(
+            nullptr,
+            Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+        m_buttonWindow->setObjectName(QStringLiteral("sessionToggleWindow"));
+        m_buttonWindow->setWindowTitle(QStringLiteral("Información de sesión"));
+        m_buttonWindow->setAttribute(Qt::WA_TranslucentBackground);
+        m_buttonWindow->setAttribute(Qt::WA_ShowWithoutActivating);
+        m_buttonWindow->setFixedSize(kButtonWindowSize, kButtonWindowSize);
+
+        auto* buttonLayout = new QVBoxLayout(m_buttonWindow);
+        buttonLayout->setContentsMargins(4, 4, 4, 4);
+        buttonLayout->setSpacing(0);
+
+        m_toggleButton = new QPushButton(QString::fromUtf8("\xE2\x97\xB7"), m_buttonWindow);
+        m_toggleButton->setObjectName(QStringLiteral("sessionToggleButton"));
+        m_toggleButton->setAccessibleName(QStringLiteral("Mostrar información de sesión"));
+        m_toggleButton->setToolTip(QStringLiteral("Información de sesión"));
+        m_toggleButton->setCursor(Qt::PointingHandCursor);
+        m_toggleButton->setFocusPolicy(Qt::NoFocus);
+        m_toggleButton->setFixedSize(kButtonSize, kButtonSize);
+        m_toggleButton->setStyleSheet(QStringLiteral(
+            "QPushButton#sessionToggleButton {"
+            " background-color: #2563eb; color: #ffffff;"
+            " border: 2px solid #ffffff; border-radius: 30px;"
+            " font-family: 'Segoe UI Symbol'; font-size: 30px; padding: 0;"
+            "}"
+            "QPushButton#sessionToggleButton:hover { background-color: #3b82f6; }"
+            "QPushButton#sessionToggleButton:pressed { background-color: #1d4ed8; }"));
+        buttonLayout->addWidget(m_toggleButton, 0, Qt::AlignCenter);
+
+        // Qt::Popup provides the required outside-click and Escape dismissal.
+        m_popup = new QFrame(
+            m_buttonWindow,
+            Qt::Popup | Qt::FramelessWindowHint);
+        m_popup->setObjectName(QStringLiteral("sessionPopup"));
+        m_popup->setWindowTitle(QStringLiteral("Sesión activa"));
+        m_popup->setAttribute(Qt::WA_StyledBackground);
+        m_popup->setFocusPolicy(Qt::StrongFocus);
+        m_popup->setFixedWidth(kPopupWidth);
+        m_popup->setStyleSheet(QStringLiteral(
+            "QFrame#sessionPopup {"
+            " background-color: #181d28; color: #e5e7eb;"
+            " border: 1px solid #374151; border-radius: 16px;"
+            "}"
+            "QLabel { background: transparent; border: none; color: #e5e7eb; }"
+            "QLabel#sessionTitle { color: #ffffff; font-size: 20px; font-weight: 700; }"
+            "QLabel#sessionSection { color: #93c5fd; font-size: 10px; font-weight: 700; }"
+            "QLabel#sessionComputer { color: #ffffff; font-size: 15px; font-weight: 600; }"
+            "QLabel#sessionTime { color: #60a5fa; font-family: Consolas; font-size: 30px; font-weight: 700; }"
+            "QLabel#sessionDetail { color: #cbd5e1; font-size: 12px; }"
+            "QPushButton#closeSessionButton {"
+            " background-color: #2563eb; color: #ffffff; border: none;"
+            " border-radius: 8px; padding: 10px 14px; font-size: 14px; font-weight: 600;"
+            "}"
+            "QPushButton#closeSessionButton:hover { background-color: #3b82f6; }"
+            "QPushButton#closeSessionButton:pressed { background-color: #1d4ed8; }"));
+
+        auto* popupLayout = new QVBoxLayout(m_popup);
+        popupLayout->setContentsMargins(22, 20, 22, 20);
+        popupLayout->setSpacing(10);
+
+        auto* title = new QLabel(QStringLiteral("SESIÓN ACTIVA"), m_popup);
+        title->setObjectName(QStringLiteral("sessionTitle"));
+        popupLayout->addWidget(title);
+
+        auto* section = new QLabel(QStringLiteral("IDENTIFICADOR DE EQUIPO"), m_popup);
+        section->setObjectName(QStringLiteral("sessionSection"));
+        popupLayout->addWidget(section);
+
+        auto* computerName = new QLabel(
+            QString::fromStdWString(GetComputerNameString()), m_popup);
+        computerName->setObjectName(QStringLiteral("sessionComputer"));
+        computerName->setWordWrap(true);
+        computerName->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        popupLayout->addWidget(computerName);
+
+        auto* divider = new QFrame(m_popup);
+        divider->setFrameShape(QFrame::HLine);
+        divider->setFixedHeight(1);
+        divider->setStyleSheet(QStringLiteral(
+            "QFrame { background-color: #374151; border: none; }"));
+        popupLayout->addWidget(divider);
+
+        m_timeLabel = new QLabel(QStringLiteral("00:00:00"), m_popup);
+        m_timeLabel->setObjectName(QStringLiteral("sessionTime"));
+        m_timeLabel->setAlignment(Qt::AlignCenter);
+        m_timeLabel->setMinimumHeight(42);
+        popupLayout->addWidget(m_timeLabel);
+
+        auto* userLabel = new QLabel(
+            QStringLiteral("Usuario: %1").arg(QString::fromStdWString(GetUserNameString())),
+            m_popup);
+        userLabel->setObjectName(QStringLiteral("sessionDetail"));
+        userLabel->setWordWrap(true);
+        popupLayout->addWidget(userLabel);
+
+        auto* ipLabel = new QLabel(
+            QStringLiteral("IP: %1").arg(QString::fromStdWString(GetIpAddress())),
+            m_popup);
+        ipLabel->setObjectName(QStringLiteral("sessionDetail"));
+        ipLabel->setWordWrap(true);
+        popupLayout->addWidget(ipLabel);
+
+        auto* closeButton = new QPushButton(QStringLiteral("Cerrar sesión"), m_popup);
+        closeButton->setObjectName(QStringLiteral("closeSessionButton"));
+        closeButton->setCursor(Qt::PointingHandCursor);
+        closeButton->setFocusPolicy(Qt::StrongFocus);
+        popupLayout->addWidget(closeButton);
+
+        connect(m_toggleButton, &QPushButton::clicked, m_buttonWindow, [this]()
         {
-            PAINTSTRUCT paint{};
-            HDC hdc = BeginPaint(hwnd, &paint);
+            if (m_popup == nullptr)
+                return;
 
-            RECT rect{};
-            GetClientRect(hwnd, &rect);
-
-            const COLORREF fillColor = g_toggleHovered
-                ? RGB(59, 130, 246)
-                : RGB(37, 99, 235);
-
-            HBRUSH background = CreateSolidBrush(fillColor);
-            HPEN border = CreatePen(PS_SOLID, 1, fillColor);
-            HGDIOBJ oldBrush = SelectObject(hdc, background);
-            HGDIOBJ oldPen = SelectObject(hdc, border);
-
-            Ellipse(hdc, rect.left + 1, rect.top + 1, rect.right - 1, rect.bottom - 1);
-
-            const int centerX = (rect.left + rect.right) / 2;
-            const int centerY = (rect.top + rect.bottom) / 2;
-            const int radius = (std::max)(10L, (std::min)(rect.right - rect.left, rect.bottom - rect.top) / 4);
-
-            HPEN clockPen = CreatePen(PS_SOLID, 2, RGB(255, 255, 255));
-            SelectObject(hdc, GetStockObject(NULL_BRUSH));
-            SelectObject(hdc, clockPen);
-
-            Ellipse(hdc, centerX - radius, centerY - radius,
-                    centerX + radius, centerY + radius);
-            MoveToEx(hdc, centerX, centerY, nullptr);
-            LineTo(hdc, centerX, centerY - radius / 2);
-            MoveToEx(hdc, centerX, centerY, nullptr);
-            LineTo(hdc, centerX + radius / 2, centerY + radius / 4);
-
-            SelectObject(hdc, oldBrush);
-            SelectObject(hdc, oldPen);
-            DeleteObject(clockPen);
-            DeleteObject(border);
-            DeleteObject(background);
-
-            EndPaint(hwnd, &paint);
-            return 0;
-        }
-
-        case WM_MOUSEMOVE:
-        {
-            if (!g_trackingMouse)
+            if (m_popup->isVisible())
             {
-                TRACKMOUSEEVENT track{};
-                track.cbSize = sizeof(track);
-                track.dwFlags = TME_LEAVE;
-                track.hwndTrack = hwnd;
-                g_trackingMouse = TrackMouseEvent(&track) != FALSE;
+                m_popup->hide();
+                return;
             }
 
-            if (!g_toggleHovered)
-            {
-                g_toggleHovered = true;
-                InvalidateRect(hwnd, nullptr, FALSE);
-            }
-            return 0;
-        }
+            updateTime();
+            positionWindows();
+            m_popup->show();
+            m_popup->raise();
+            m_popup->activateWindow();
+            m_popup->setFocus(Qt::PopupFocusReason);
+        });
 
-        case WM_MOUSELEAVE:
-            g_trackingMouse = false;
-            g_toggleHovered = false;
-            InvalidateRect(hwnd, nullptr, FALSE);
-            return 0;
-
-        case WM_LBUTTONUP:
-            ShowOrHideSessionPanel();
-            return 0;
-
-        case WM_MOUSEACTIVATE:
-            return MA_NOACTIVATE;
-
-        case WM_DISPLAYCHANGE:
-        case WM_DPICHANGED:
-            PositionSessionWindows();
-            return 0;
-
-        case WM_NCDESTROY:
-            if (hwnd == g_toggleWindow)
-                g_toggleWindow = nullptr;
-            break;
-    }
-
-    return DefWindowProcW(hwnd, message, wParam, lParam);
-}
-
-} // namespace
-
-// ============================================================
-// Ventana principal del panel emergente de sesión.
-// ============================================================
-LRESULT CALLBACK SessionWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    switch (message)
-    {
-        case WM_TIMER:
-            if (wParam == kSessionTimerId)
-                UpdateSessionTime();
-            return 0;
-
-        case WM_COMMAND:
-            if (LOWORD(wParam) == kCloseSessionButtonId &&
-                HIWORD(wParam) == BN_CLICKED)
+        connect(closeButton, &QPushButton::clicked, m_popup, []()
+        {
+            // Defer destruction until the clicked signal has finished dispatching.
+            QTimer::singleShot(0, qApp, []()
             {
                 LockKiosk();
-                return 0;
-            }
-            break;
+            });
+        });
 
-        case WM_ERASEBKGND:
+        m_timer = new QTimer(m_buttonWindow);
+        m_timer->setInterval(1000);
+        connect(m_timer, &QTimer::timeout, m_buttonWindow, [this]()
         {
-            RECT rect{};
-            GetClientRect(hwnd, &rect);
-            HBRUSH brush = g_sessionBackgroundBrush != nullptr
-                ? g_sessionBackgroundBrush
-                : GetSysColorBrush(COLOR_WINDOW);
-            FillRect(reinterpret_cast<HDC>(wParam), &rect, brush);
-            return 1;
+            updateTime();
+        });
+        m_timer->start();
+
+        if (QScreen* screen = QGuiApplication::primaryScreen())
+        {
+            connect(screen, &QScreen::availableGeometryChanged,
+                    m_buttonWindow, [this](const QRect&) { positionWindows(); });
+            connect(screen, &QScreen::geometryChanged,
+                    m_buttonWindow, [this](const QRect&) { positionWindows(); });
         }
 
-        case WM_CTLCOLORSTATIC:
-        {
-            HDC hdc = reinterpret_cast<HDC>(wParam);
-            HWND control = reinterpret_cast<HWND>(lParam);
-            const int controlId = GetDlgCtrlID(control);
-
-            COLORREF textColor = RGB(229, 231, 235);
-            if (controlId == kHeaderLabelId)
-                textColor = RGB(255, 255, 255);
-            else if (controlId == kDetailsLabelId)
-                textColor = RGB(147, 197, 253);
-            else if (controlId == kTimeLabelId)
-                textColor = RGB(96, 165, 250);
-            else if (controlId == kUserLabelId || controlId == kIpLabelId)
-                textColor = RGB(203, 213, 225);
-
-            SetTextColor(hdc, textColor);
-            SetBkColor(hdc, RGB(24, 29, 40));
-            SetBkMode(hdc, OPAQUE);
-
-            return reinterpret_cast<LRESULT>(
-                g_sessionBackgroundBrush != nullptr
-                    ? g_sessionBackgroundBrush
-                    : GetSysColorBrush(COLOR_WINDOW));
-        }
-
-        case WM_DRAWITEM:
-        {
-            if (wParam != kCloseSessionButtonId || lParam == 0)
-                break;
-
-            auto* draw = reinterpret_cast<DRAWITEMSTRUCT*>(lParam);
-            if (draw->CtlType != ODT_BUTTON)
-                break;
-
-            const bool pressed = (draw->itemState & ODS_SELECTED) != 0;
-            const COLORREF buttonColor = pressed
-                ? RGB(29, 78, 216)
-                : RGB(37, 99, 235);
-
-            RECT rect = draw->rcItem;
-            HBRUSH brush = CreateSolidBrush(buttonColor);
-            HPEN pen = CreatePen(PS_SOLID, 1, buttonColor);
-            HGDIOBJ oldBrush = SelectObject(draw->hDC, brush);
-            HGDIOBJ oldPen = SelectObject(draw->hDC, pen);
-
-            RoundRect(draw->hDC, rect.left, rect.top, rect.right, rect.bottom, 12, 12);
-
-            SetBkMode(draw->hDC, TRANSPARENT);
-            SetTextColor(draw->hDC, RGB(255, 255, 255));
-            HGDIOBJ oldFont = nullptr;
-            if (g_sessionFont != nullptr)
-                oldFont = SelectObject(draw->hDC, g_sessionFont);
-
-            DrawTextW(draw->hDC, L"Cerrar sesión", -1, &rect,
-                      DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-
-            if ((draw->itemState & ODS_FOCUS) != 0)
-            {
-                InflateRect(&rect, -5, -5);
-                DrawFocusRect(draw->hDC, &rect);
-            }
-
-            if (oldFont != nullptr)
-                SelectObject(draw->hDC, oldFont);
-            SelectObject(draw->hDC, oldBrush);
-            SelectObject(draw->hDC, oldPen);
-            DeleteObject(brush);
-            DeleteObject(pen);
-            return TRUE;
-        }
-
-        case WM_ACTIVATE:
-            // Un clic fuera del panel lo descarta sin terminar la sesión.
-            if (LOWORD(wParam) == WA_INACTIVE && IsWindowVisible(hwnd))
-                ShowWindow(hwnd, SW_HIDE);
-            break;
-
-        case WM_KEYDOWN:
-            if (wParam == VK_ESCAPE)
-            {
-                ShowWindow(hwnd, SW_HIDE);
-                return 0;
-            }
-            break;
-
-        case WM_CLOSE:
-            // Cerrar el Popup solo lo oculta; el fin de sesión es explícito.
-            ShowWindow(hwnd, SW_HIDE);
-            return 0;
-
-        case WM_DISPLAYCHANGE:
-        case WM_DPICHANGED:
-            PositionSessionWindows();
-            return 0;
-
-        case WM_DESTROY:
-            KillTimer(hwnd, kSessionTimerId);
-
-            if (g_sessionFont != nullptr)
-            {
-                DeleteObject(g_sessionFont);
-                g_sessionFont = nullptr;
-            }
-            if (g_sessionTitleFont != nullptr)
-            {
-                DeleteObject(g_sessionTitleFont);
-                g_sessionTitleFont = nullptr;
-            }
-            if (g_sessionTimeFont != nullptr)
-            {
-                DeleteObject(g_sessionTimeFont);
-                g_sessionTimeFont = nullptr;
-            }
-            if (g_sessionBackgroundBrush != nullptr)
-            {
-                DeleteObject(g_sessionBackgroundBrush);
-                g_sessionBackgroundBrush = nullptr;
-            }
-
-            g_sessionTimeLabel = nullptr;
-            g_sessionPcLabel = nullptr;
-            g_sessionIpLabel = nullptr;
-            g_sessionUserLabel = nullptr;
-            g_closeSessionButton = nullptr;
-            g_sessionWindow = nullptr;
-            return 0;
+        updateTime();
+        positionWindows();
+        m_buttonWindow->show();
+        m_buttonWindow->raise();
     }
 
-    return DefWindowProcW(hwnd, message, wParam, lParam);
-}
-
-namespace
-{
-LRESULT CALLBACK SessionCloseButtonProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    if (message == WM_KEYDOWN && wParam == VK_ESCAPE)
+    void positionWindows()
     {
-        ShowWindow(GetParent(hwnd), SW_HIDE);
-        return 0;
+        if (m_buttonWindow == nullptr)
+            return;
+
+        QScreen* screen = QGuiApplication::primaryScreen();
+        if (screen == nullptr)
+            return;
+
+        const QRect area = screen->availableGeometry();
+        const int buttonX = area.x() + area.width() - kButtonWindowSize - kScreenMargin;
+        const int buttonY = area.y() + area.height() - kButtonWindowSize - kScreenMargin;
+        m_buttonWindow->move(buttonX, buttonY);
+
+        if (m_popup == nullptr)
+            return;
+
+        m_popup->adjustSize();
+        const int popupWidth = m_popup->width();
+        const int popupHeight = m_popup->height();
+
+        int popupX = buttonX + kButtonWindowSize - popupWidth;
+        int popupY = buttonY - popupHeight - kPopupSpacing;
+
+        // If the popup cannot fit above the button, place it below instead.
+        if (popupY < area.y() + kScreenMargin)
+            popupY = buttonY + kButtonWindowSize + kPopupSpacing;
+
+        const int minX = area.x() + kScreenMargin;
+        const int maxX = (std::max)(minX, area.x() + area.width() - popupWidth - kScreenMargin);
+        const int minY = area.y() + kScreenMargin;
+        const int maxY = (std::max)(minY, area.y() + area.height() - popupHeight - kScreenMargin);
+
+        popupX = (std::clamp)(popupX, minX, maxX);
+        popupY = (std::clamp)(popupY, minY, maxY);
+        m_popup->move(popupX, popupY);
     }
 
-    WNDPROC originalProc = g_closeButtonOriginalProc;
-    if (message == WM_NCDESTROY)
-        g_closeButtonOriginalProc = nullptr;
+    QWidget* m_buttonWindow = nullptr;
+    QPushButton* m_toggleButton = nullptr;
+    QFrame* m_popup = nullptr;
+    QLabel* m_timeLabel = nullptr;
+    QTimer* m_timer = nullptr;
+    std::chrono::steady_clock::time_point m_sessionStart;
+};
 
-    if (originalProc != nullptr)
-        return CallWindowProcW(originalProc, hwnd, message, wParam, lParam);
-
-    return DefWindowProcW(hwnd, message, wParam, lParam);
+SessionActive* g_sessionActive = nullptr;
 }
 
-} // namespace
+// Qt widget-based session indicator. QApplication must exist before this API is used.
+bool RegisterSessionWindowClass(HINSTANCE hInstance)
+{
+    (void)hInstance;
+    return qApp != nullptr;
+}
 
-// ============================================================
-// Crear el botón persistente y el panel inicialmente oculto.
-// ============================================================
 void CreateSessionWindow(HINSTANCE hInstance)
 {
-    if (g_sessionWindow != nullptr || g_toggleWindow != nullptr)
+    (void)hInstance;
+
+    if (g_sessionActive != nullptr || qApp == nullptr)
         return;
 
-    g_sessionStart = std::chrono::steady_clock::now();
-    g_toggleHovered = false;
-    g_trackingMouse = false;
-
-    g_sessionBackgroundBrush = CreateSolidBrush(RGB(24, 29, 40));
-
-    // No asignamos propietario al botón: debe seguir visible cuando se oculta
-    // la ventana principal del kiosco.
-    g_toggleWindow = CreateWindowExW(
-        WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
-        kToggleClassName,
-        L"Mostrar información de sesión",
-        WS_POPUP,
-        0, 0, kToggleSize, kToggleSize,
-        nullptr,
-        nullptr,
-        hInstance,
-        nullptr
-    );
-
-    if (g_toggleWindow == nullptr)
+    auto* session = new SessionActive();
+    if (!session->isValid())
     {
-        if (g_sessionBackgroundBrush != nullptr)
-        {
-            DeleteObject(g_sessionBackgroundBrush);
-            g_sessionBackgroundBrush = nullptr;
-        }
+        delete session;
+        OutputDebugStringW(L"[SESSION] No se pudo crear la interfaz Qt de sesión.\n");
         return;
     }
 
-    g_sessionWindow = CreateWindowExW(
-        WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
-        kSessionClassName,
-        L"Sesión activa",
-        WS_POPUP | WS_BORDER,
-        0, 0, kPanelWidth, kPanelHeight,
-        g_toggleWindow,
-        nullptr,
-        hInstance,
-        nullptr
-    );
-
-    if (g_sessionWindow == nullptr)
-    {
-        DestroyWindow(g_toggleWindow);
-        g_toggleWindow = nullptr;
-
-        if (g_sessionBackgroundBrush != nullptr)
-        {
-            DeleteObject(g_sessionBackgroundBrush);
-            g_sessionBackgroundBrush = nullptr;
-        }
-        return;
-    }
-
-    g_sessionFont = CreateFontW(
-        15, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-        DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-
-    g_sessionTitleFont = CreateFontW(
-        24, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-        DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-
-    g_sessionTimeFont = CreateFontW(
-        30, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-        DEFAULT_PITCH | FF_DONTCARE, L"Consolas");
-
-    CreateSessionLabel(hInstance, g_sessionWindow, L"SESIÓN ACTIVA",
-        kHeaderLabelId, 22, 18, 306, 34, g_sessionTitleFont);
-
-    CreateSessionLabel(hInstance, g_sessionWindow, L"DATOS DEL EQUIPO",
-        kDetailsLabelId, 24, 58, 302, 20, g_sessionFont);
-
-    g_sessionPcLabel = CreateSessionLabel(
-        hInstance, g_sessionWindow,
-        (L"Equipo: " + GetComputerNameString()).c_str(),
-        kPcLabelId, 24, 82, 302, 22, g_sessionFont);
-
-    g_sessionUserLabel = CreateSessionLabel(
-        hInstance, g_sessionWindow,
-        (L"Usuario: " + GetUserNameString()).c_str(),
-        kUserLabelId, 24, 106, 302, 22, g_sessionFont);
-
-    g_sessionIpLabel = CreateSessionLabel(
-        hInstance, g_sessionWindow,
-        (L"IP: " + GetIpAddress()).c_str(),
-        kIpLabelId, 24, 130, 302, 22, g_sessionFont);
-
-    g_sessionTimeLabel = CreateSessionLabel(
-        hInstance, g_sessionWindow, L"00:00:00",
-        kTimeLabelId, 22, 156, 306, 42, g_sessionTimeFont, SS_CENTER);
-
-    g_closeSessionButton = CreateWindowExW(
-        0,
-        L"BUTTON",
-        L"Cerrar sesión",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW,
-        24, 218, 302, 40,
-        g_sessionWindow,
-        reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCloseSessionButtonId)),
-        hInstance,
-        nullptr
-    );
-
-    if (g_closeSessionButton != nullptr && g_sessionFont != nullptr)
-    {
-        SendMessageW(g_closeSessionButton, WM_SETFONT,
-                     reinterpret_cast<WPARAM>(g_sessionFont), TRUE);
-
-        SetLastError(0);
-        const LONG_PTR originalProc = SetWindowLongPtrW(
-            g_closeSessionButton,
-            GWLP_WNDPROC,
-            reinterpret_cast<LONG_PTR>(SessionCloseButtonProc));
-
-        if (originalProc != 0)
-            g_closeButtonOriginalProc = reinterpret_cast<WNDPROC>(originalProc);
-    }
-
-    PositionSessionWindows();
-
-    if (SetTimer(g_sessionWindow, kSessionTimerId, 1000, nullptr) == 0)
-        OutputDebugStringW(L"[SESSION] No se pudo crear el temporizador de sesión.\n");
-
-    UpdateSessionTime();
-
-    // Solo se muestra el botón circular. El panel se abre al pulsarlo.
-    ShowWindow(g_toggleWindow, SW_SHOWNOACTIVATE);
-    UpdateWindow(g_toggleWindow);
+    g_sessionActive = session;
 }
 
-// ============================================================
-// Destruir todo el componente de sesión.
-// ============================================================
 void DestroySessionWindow()
 {
-    if (g_sessionWindow != nullptr)
-        DestroyWindow(g_sessionWindow);
+    delete g_sessionActive;
+    g_sessionActive = nullptr;
+}
 
-    if (g_toggleWindow != nullptr)
-        DestroyWindow(g_toggleWindow);
-
-    g_sessionWindow = nullptr;
-    g_toggleWindow = nullptr;
-    g_sessionTimeLabel = nullptr;
-    g_sessionPcLabel = nullptr;
-    g_sessionIpLabel = nullptr;
-    g_sessionUserLabel = nullptr;
-    g_closeSessionButton = nullptr;
+void UpdateSessionTime()
+{
+    if (g_sessionActive != nullptr)
+        g_sessionActive->updateTime();
 }
