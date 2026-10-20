@@ -1,6 +1,3 @@
-#include "SessionWindow.h"
-#include "SystemUtils.h"
-
 #include <QApplication>
 #include <QFrame>
 #include <QGuiApplication>
@@ -13,6 +10,9 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
+
+#include "SessionWindow.h"
+#include "SystemUtils.h"
 
 #include <algorithm>
 #include <chrono>
@@ -216,7 +216,7 @@ private:
         closeButton->setFocusPolicy(Qt::StrongFocus);
         popupLayout->addWidget(closeButton);
 
-        connect(m_toggleButton, &QPushButton::clicked, m_buttonWindow, [this]()
+        QObject::connect(m_toggleButton, &QPushButton::clicked, m_buttonWindow, [this]()
         {
             if (m_popup == nullptr)
                 return;
@@ -235,7 +235,7 @@ private:
             m_popup->setFocus(Qt::PopupFocusReason);
         });
 
-        connect(closeButton, &QPushButton::clicked, m_popup, []()
+        QObject::connect(closeButton, &QPushButton::clicked, m_popup, []()
         {
             // Defer destruction until the clicked signal has finished dispatching.
             QTimer::singleShot(0, qApp, []()
@@ -246,7 +246,7 @@ private:
 
         m_timer = new QTimer(m_buttonWindow);
         m_timer->setInterval(1000);
-        connect(m_timer, &QTimer::timeout, m_buttonWindow, [this]()
+        QObject::connect(m_timer, &QTimer::timeout, m_buttonWindow, [this]()
         {
             updateTime();
         });
@@ -254,9 +254,9 @@ private:
 
         if (QScreen* screen = QGuiApplication::primaryScreen())
         {
-            connect(screen, &QScreen::availableGeometryChanged,
+            QObject::connect(screen, &QScreen::availableGeometryChanged,
                     m_buttonWindow, [this](const QRect&) { positionWindows(); });
-            connect(screen, &QScreen::geometryChanged,
+            QObject::connect(screen, &QScreen::geometryChanged,
                     m_buttonWindow, [this](const QRect&) { positionWindows(); });
         }
 
