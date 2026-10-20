@@ -7,6 +7,8 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QPainter>
+#include <QPaintEvent>
 #include <QScreen>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -24,6 +26,35 @@ constexpr int kButtonSize = 60;
 constexpr int kScreenMargin = 20;
 constexpr int kPopupWidth = 330;
 constexpr int kPopupSpacing = 12;
+
+class MouseToggleButton final : public QPushButton
+{
+public:
+    explicit MouseToggleButton(QWidget* parent = nullptr)
+        : QPushButton(parent)
+    {
+    }
+
+protected:
+    void paintEvent(QPaintEvent* event) override
+    {
+        QPushButton::paintEvent(event);
+
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        QPen pen(QColor(255, 255, 255), 2.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+
+        const qreal w = width();
+        const qreal h = height();
+        const QRectF mouseBody(w * 0.32, h * 0.18, w * 0.36, h * 0.64);
+        painter.drawRoundedRect(mouseBody, mouseBody.width() * 0.48, mouseBody.width() * 0.48);
+        painter.drawLine(
+            QPointF(mouseBody.center().x(), mouseBody.top() + 2.0),
+            QPointF(mouseBody.center().x(), mouseBody.top() + h * 0.20));
+    }
+};
 
 class SessionActive final
 {
@@ -89,7 +120,7 @@ private:
         buttonLayout->setContentsMargins(4, 4, 4, 4);
         buttonLayout->setSpacing(0);
 
-        m_toggleButton = new QPushButton(QString::fromUtf8("\xE2\x97\xB7"), m_buttonWindow);
+        m_toggleButton = new MouseToggleButton(m_buttonWindow);
         m_toggleButton->setObjectName(QStringLiteral("sessionToggleButton"));
         m_toggleButton->setAccessibleName(QStringLiteral("Mostrar información de sesión"));
         m_toggleButton->setToolTip(QStringLiteral("Información de sesión"));
