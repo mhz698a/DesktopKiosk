@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <string>
 
 extern HWND g_hwnd;
@@ -223,7 +224,9 @@ bool RegisterSessionWindowClass(HINSTANCE hInstance)
 // ============================================================
 // Ventana del botón circular persistente.
 // ============================================================
-static LRESULT CALLBACK ToggleWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+namespace
+{
+LRESULT CALLBACK ToggleWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
@@ -316,6 +319,8 @@ static LRESULT CALLBACK ToggleWindowProc(HWND hwnd, UINT message, WPARAM wParam,
 
     return DefWindowProcW(hwnd, message, wParam, lParam);
 }
+
+} // namespace
 
 // ============================================================
 // Ventana principal del panel emergente de sesión.
@@ -481,7 +486,9 @@ LRESULT CALLBACK SessionWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARA
     return DefWindowProcW(hwnd, message, wParam, lParam);
 }
 
-static LRESULT CALLBACK SessionCloseButtonProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+namespace
+{
+LRESULT CALLBACK SessionCloseButtonProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     if (message == WM_KEYDOWN && wParam == VK_ESCAPE)
     {
@@ -498,6 +505,8 @@ static LRESULT CALLBACK SessionCloseButtonProc(HWND hwnd, UINT message, WPARAM w
 
     return DefWindowProcW(hwnd, message, wParam, lParam);
 }
+
+} // namespace
 
 // ============================================================
 // Crear el botón persistente y el panel inicialmente oculto.
