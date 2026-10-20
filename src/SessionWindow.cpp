@@ -108,7 +108,7 @@ void PositionSessionWindows()
     const int monitorWidth = bounds.right - bounds.left;
     const int monitorHeight = bounds.bottom - bounds.top;
 
-    const int toggleSize = std::min(kToggleSize, std::max(32, monitorWidth - 2 * kScreenMargin));
+    const int toggleSize = (std::min)(kToggleSize, (std::max)(32, monitorWidth - 2 * kScreenMargin));
     const int toggleX = bounds.right - toggleSize - kScreenMargin;
     const int toggleY = bounds.top + kScreenMargin;
 
@@ -134,8 +134,8 @@ void PositionSessionWindows()
 
     if (g_sessionWindow != nullptr)
     {
-        const int panelWidth = std::min(kPanelWidth, std::max(240, monitorWidth - 2 * kScreenMargin));
-        const int panelHeight = std::min(kPanelHeight, std::max(220, monitorHeight - 2 * kScreenMargin));
+        const int panelWidth = (std::min)(kPanelWidth, (std::max)(240, monitorWidth - 2 * kScreenMargin));
+        const int panelHeight = (std::min)(kPanelHeight, (std::max)(220, monitorHeight - 2 * kScreenMargin));
 
         int panelX = toggleX + toggleSize - panelWidth;
         int panelY = toggleY + toggleSize + 10;
@@ -144,9 +144,9 @@ void PositionSessionWindows()
             panelY = toggleY - panelHeight - 10;
 
         const int minX = bounds.left + kScreenMargin;
-        const int maxX = std::max(minX, bounds.right - panelWidth - kScreenMargin);
+        const int maxX = (std::max)(minX, static_cast<int>(bounds.right - panelWidth - kScreenMargin));
         const int minY = bounds.top + kScreenMargin;
-        const int maxY = std::max(minY, bounds.bottom - panelHeight - kScreenMargin);
+        const int maxY = (std::max)(minY, static_cast<int>(bounds.bottom - panelHeight - kScreenMargin));
 
         panelX = std::clamp(panelX, minX, maxX);
         panelY = std::clamp(panelY, minY, maxY);
@@ -251,7 +251,7 @@ LRESULT CALLBACK ToggleWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 
             const int centerX = (rect.left + rect.right) / 2;
             const int centerY = (rect.top + rect.bottom) / 2;
-            const int radius = std::max(10, std::min(rect.right - rect.left, rect.bottom - rect.top) / 4);
+            const int radius = (std::max)(10L, (std::min)(rect.right - rect.left, rect.bottom - rect.top) / 4);
 
             HPEN clockPen = CreatePen(PS_SOLID, 2, RGB(255, 255, 255));
             SelectObject(hdc, GetStockObject(NULL_BRUSH));
