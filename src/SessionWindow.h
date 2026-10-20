@@ -2,17 +2,14 @@
 
 #include <windows.h>
 
-// Registra las clases Win32 del botón circular y del panel emergente de sesión.
+// Verifica que QApplication ya esté inicializada para crear widgets Qt.
 bool RegisterSessionWindowClass(HINSTANCE hInstance);
 
-// Crea el botón flotante persistente y el panel de sesión, inicialmente oculto.
+// Crea el botón circular flotante y el Popup de sesión con Qt 6.
 void CreateSessionWindow(HINSTANCE hInstance);
 
-// Destruye el botón, el panel y el temporizador de la sesión actual.
+// Destruye la interfaz y su temporizador al bloquear el kiosco.
 void DestroySessionWindow();
 
-// Actualiza el contador de tiempo transcurrido (HH:MM:SS).
+// Actualiza el contador de sesión (HH:MM:SS).
 void UpdateSessionTime();
-
-// Manejador de eventos del panel emergente de sesión.
-LRESULT CALLBACK SessionWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
