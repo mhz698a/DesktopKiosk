@@ -138,23 +138,25 @@ private:
         buttonLayout->addWidget(m_toggleButton, 0, Qt::AlignCenter);
 
         // Qt::Popup provides the required outside-click and Escape dismissal.
-        m_popup = new QFrame(
-            m_buttonWindow,
-            Qt::Popup | Qt::FramelessWindowHint);
+        m_popup = new QFrame(m_buttonWindow, Qt::Popup | Qt::FramelessWindowHint);
         m_popup->setObjectName(QStringLiteral("sessionPopup"));
         m_popup->setWindowTitle(QStringLiteral("Sesión activa"));
-        m_popup->setAttribute(Qt::WA_StyledBackground);
+        m_popup->setAttribute(Qt::WA_TranslucentBackground); 
         m_popup->setFocusPolicy(Qt::StrongFocus);
         m_popup->setFixedWidth(kPopupWidth);
+
+        auto* container = new QFrame(m_popup);
+        container->setObjectName(QStringLiteral("popupContainer"));
+
         m_popup->setStyleSheet(QStringLiteral(
-            "QFrame#sessionPopup {"
+            "QFrame#popupContainer {"
             " background-color: #181d28; color: #e5e7eb;"
             " border: 1px solid #374151; border-radius: 16px;"
             "}"
             "QLabel { background: transparent; border: none; color: #e5e7eb; }"
             "QLabel#sessionTitle { color: #ffffff; font-size: 20px; font-weight: 700; }"
             "QLabel#sessionSection { color: #93c5fd; font-size: 10px; font-weight: 700; }"
-            "QLabel#sessionComputer { color: #ffffff; font-size: 15px; font-weight: 600; }"
+            "QLabel#sessionComputer { color: #ffffff; font-size: 20px; font-weight: 700; }"
             "QLabel#sessionTime { color: #60a5fa; font-family: Consolas; font-size: 30px; font-weight: 700; }"
             "QLabel#sessionDetail { color: #cbd5e1; font-size: 12px; }"
             "QPushButton#closeSessionButton {"
@@ -164,21 +166,29 @@ private:
             "QPushButton#closeSessionButton:hover { background-color: #3b82f6; }"
             "QPushButton#closeSessionButton:pressed { background-color: #1d4ed8; }"));
 
-        auto* popupLayout = new QVBoxLayout(m_popup);
+        // El layout principal del popup SOLO contiene al contenedor interno
+        auto* mainLayout = new QVBoxLayout(m_popup);
+        mainLayout->setContentsMargins(0, 0, 0, 0);
+        mainLayout->addWidget(container);
+
+        auto* popupLayout = new QVBoxLayout(container);
         popupLayout->setContentsMargins(22, 20, 22, 20);
         popupLayout->setSpacing(10);
 
         auto* title = new QLabel(QStringLiteral("SESIÓN ACTIVA"), m_popup);
         title->setObjectName(QStringLiteral("sessionTitle"));
         popupLayout->addWidget(title);
+        title->hide();
 
         auto* section = new QLabel(QStringLiteral("IDENTIFICADOR DE EQUIPO"), m_popup);
         section->setObjectName(QStringLiteral("sessionSection"));
         popupLayout->addWidget(section);
+        section->hide();
 
         auto* computerName = new QLabel(
             QString::fromStdWString(GetComputerNameString()), m_popup);
         computerName->setObjectName(QStringLiteral("sessionComputer"));
+        computerName->setAlignment(Qt::AlignCenter);
         computerName->setWordWrap(true);
         computerName->setTextInteractionFlags(Qt::TextSelectableByMouse);
         popupLayout->addWidget(computerName);
@@ -189,6 +199,7 @@ private:
         divider->setStyleSheet(QStringLiteral(
             "QFrame { background-color: #374151; border: none; }"));
         popupLayout->addWidget(divider);
+        divider->hide();
 
         m_timeLabel = new QLabel(QStringLiteral("00:00:00"), m_popup);
         m_timeLabel->setObjectName(QStringLiteral("sessionTime"));
@@ -202,6 +213,7 @@ private:
         userLabel->setObjectName(QStringLiteral("sessionDetail"));
         userLabel->setWordWrap(true);
         popupLayout->addWidget(userLabel);
+        userLabel->hide();
 
         auto* ipLabel = new QLabel(
             QStringLiteral("IP: %1").arg(QString::fromStdWString(GetIpAddress())),
@@ -209,6 +221,7 @@ private:
         ipLabel->setObjectName(QStringLiteral("sessionDetail"));
         ipLabel->setWordWrap(true);
         popupLayout->addWidget(ipLabel);
+        ipLabel->hide();
 
         auto* closeButton = new QPushButton(QStringLiteral("Cerrar sesión"), m_popup);
         closeButton->setObjectName(QStringLiteral("closeSessionButton"));
