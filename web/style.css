@@ -10,21 +10,53 @@ body {
 }
 
 body {
-    background: #111;
-    color: white;
+    background: linear-gradient(rgba(0, 0, 0, 0.096), rgba(0, 0, 0, 0.125)), url('imgs/fondo1.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    color: rgb(0, 0, 0);
     font-family: Arial, sans-serif;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+}
+
+h1 {
+    font-size: 36px;
+    font-weight: 400;
 }
 
 .topbar {
     position: fixed;
     top: 0;
     right: 0;
-
     display: flex;
     gap: 8px;
-
     padding: 12px;
+}
+
+footer {
+    width: 100%;
+    padding: 12px 20px;
+    text-align: center;
+    background: transparent;
+    background-size: cover;
+    background-position: center;
+    background-repeat: repeat;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    color: #444;
 }
 
 button {
@@ -48,23 +80,6 @@ button:hover {
     padding: 8px;
 }
 
-main {
-    width: 100%;
-    height: 100%;
-
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-
-    gap: 30px;
-}
-
-h1 {
-    font-size: 36px;
-    font-weight: 400;
-}
-
 .unlock {
     font-size: 18px;
     padding: 15px 40px;
@@ -73,4 +88,65 @@ h1 {
 
 .unlock:hover {
     background: #1d4ed8;
+}
+
+
+/* Tabs Logic */
+.tabs-container {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.4);
+    padding: 6px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    max-width: 400px;
+    border: 1px solid #797979;
+}
+
+.tab-btn {
+    background: transparent;
+    color: #000000;
+    padding: 8px 14px;
+    font-size: 14px;
+    border-radius: 6px;
+}
+
+.tab-btn:hover {
+    background: #aac2f8;
+}
+
+.tab-btn.active {
+    background: #2563eb;
+    color: white;
+}
+
+.tab-panel {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start; /* Alinea los elementos desde arriba dentro de su espacio fijo */
+    gap: 15px;
+    width: 100%;
+    max-width: 400px;
+    height: 320px; /* Ajusta este valor según el panel que tenga más contenido (ej. el de externos) */
+}
+
+.tab-panel.active {
+    display: flex;
+}
+
+.form-group {
+    width: 100%;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 12px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #ffffff;
+    color: rgb(25, 25, 25);
+    font-size: 15px;
 }
