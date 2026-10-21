@@ -13,6 +13,12 @@
     </div>
 
     <main>
+        <div class="logo-container">
+            <img src="imgs/logo_1.png" alt="Logo 1" class="logo-img1">
+            <div class="logo-divider"></div>
+            <img src="imgs/logo_2.png" alt="Logo 2" class="logo-img2">
+        </div>
+
         <!-- Contenedor de Pestañas -->
         <div class="tabs-container">
             <button class="tab-btn active" onclick="switchTab(event, 'login-panel')">Inicio de sesión</button>
@@ -34,7 +40,6 @@
 
         <!-- Panel 2: Registro de internos -->
         <div id="internos-panel" class="tab-panel">
-            <h1>Registro de Alumnos</h1>
             <div class="form-group">
                 <input type="text" placeholder="Nombres">
             </div>
@@ -57,7 +62,6 @@
 
         <!-- Panel 3: Registro de externos -->
         <div id="externos-panel" class="tab-panel">
-            <h1>Registro de externos</h1>
             <div class="form-group">
                 <input type="text" placeholder="Nombres">
             </div>
@@ -81,7 +85,7 @@
     </main>
 
     <footer class="bottombar">
-        Coordinación General de Servicios de Informatización
+        Coordinación General de Servicios de Informatización © 2027
     </footer>
 
     <script src="app.js"></script>

@@ -90,8 +90,38 @@ button:hover {
     background: #1d4ed8;
 }
 
+/* -------------------------------- //
+   Logo Logic
+/* -------------------------------- */
 
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.logo-divider {
+    width: 1px;
+    height: 75px;
+    background-color: #797979;
+}
+
+.logo-img1 {
+    max-height: 90px;
+    width: auto;
+    object-fit: contain;
+}
+
+.logo-img2 {
+    max-height: 130px;
+    width: auto;
+    object-fit: contain;
+}
+
+/* ----------------------------- */
 /* Tabs Logic */
+/* ----------------------------- */
+
 .tabs-container {
     display: flex;
     justify-content: center;
@@ -125,11 +155,11 @@ button:hover {
     display: none;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start; /* Alinea los elementos desde arriba dentro de su espacio fijo */
-    gap: 15px;
+    justify-content: flex-start;
+    gap: 10px;
     width: 100%;
     max-width: 400px;
-    height: 320px; /* Ajusta este valor según el panel que tenga más contenido (ej. el de externos) */
+    height: 320px;
 }
 
 .tab-panel.active {
