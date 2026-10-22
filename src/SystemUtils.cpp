@@ -103,20 +103,23 @@ std::wstring GetWebPageUrl()
 }
 
 std::string GetEmbeddedResource(int resourceId) {
-    // 1. Buscar el recurso dentro del propio módulo EXE
-    HRSRC hRes = FindResource(NULL, MAKEINTRESOURCE(resourceId), RT_HTML);
-    if (!hRes) return "";
+    // Buscar primero recursos HTML y luego recursos binarios (RCDATA).
+    HRSRC hRes = FindResourceW(nullptr, MAKEINTRESOURCEW(resourceId), RT_HTML);
+    if (!hRes)
+        hRes = FindResourceW(nullptr, MAKEINTRESOURCEW(resourceId), RT_RCDATA);
+    if (!hRes)
+        return "";
 
-    // 2. Cargar el recurso en la memoria global
-    HGLOBAL hData = LoadResource(NULL, hRes);
-    if (!hData) return "";
+    HGLOBAL hData = LoadResource(nullptr, hRes);
+    if (!hData)
+        return "";
 
-    // 3. Bloquearlo para obtener el puntero directo a los bytes
-    DWORD dataSize = SizeofResource(NULL, hRes);
+    const DWORD dataSize = SizeofResource(nullptr, hRes);
     const char* pData = reinterpret_cast<const char*>(LockResource(hData));
 
-    if (!pData) return "";
+    if (!pData)
+        return "";
 
-    // 4. Retornar los datos como un string de C++
+    // std::string conserva los bytes nulos, por lo que también sirve para PNG.
     return std::string(pData, dataSize);
 }

@@ -67,6 +67,22 @@ std::string BuildResponse(int status, const char* reason, const std::string& bod
     return response.str();
 }
 
+int GetImageResourceId(const std::string& path)
+{
+    if (path == "/imgs/fondo1.png")
+        return IDR_FONDO1_PNG;
+    if (path == "/imgs/fondo2.png")
+        return IDR_FONDO2_PNG;
+    if (path == "/imgs/logo_1.png")
+        return IDR_LOGO_1_PNG;
+    if (path == "/imgs/logo_2.png")
+        return IDR_LOGO_2_PNG;
+    if (path == "/imgs/mosaico.png")
+        return IDR_MOSAICO_PNG;
+
+    return 0;
+}
+
 bool HeaderNameEquals(const std::string& actual, const std::string& expected)
 {
     if (actual.size() != expected.size())
@@ -277,10 +293,30 @@ public:
                 closesocket(client);
                 return;
             }
+            else
+            {
+                const int imageResourceId = GetImageResourceId(path);
+                if (imageResourceId != 0)
+                {
+                    std::string imageContent = GetEmbeddedResource(imageResourceId);
 
-            SendResponse(client, BuildResponse(404, "Not Found", R"({"error":"not_found"})"));
-            closesocket(client);
-            return;
+                    if (imageContent.empty())
+                    {
+                        SendResponse(client, BuildResponse(404, "Not Found", R"({"error":"resource_not_found"})"));
+                    }
+                    else
+                    {
+                        SendResponse(client, BuildResponse(200, "OK", imageContent, "image/png"));
+                    }
+                }
+                else
+                {
+                    SendResponse(client, BuildResponse(404, "Not Found", R"({"error":"not_found"})"));
+                }
+
+                closesocket(client);
+                return;
+            }
         }
 
         // const std::string authorization = GetHeaderValue(request, "Authorization");
