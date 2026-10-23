@@ -25,35 +25,34 @@ document.addEventListener('DOMContentLoaded', () => {
 const unlock_buttons = document.querySelectorAll('.unlock');
 
 unlock_buttons.forEach(boton => {
-    boton.addEventListener('click', (evento) => {
+    boton.addEventListener('click', async (evento) => {
         // 1. Verificación de información completa
         if (!validarPanelActivo()) {
-            return; // Detiene la ejecución si hay campos vacíos o con error
+            return;
         }
 
         // 2. Preparación de los datos según el panel activo
         const activePanel = document.querySelector('.tab-panel.active');
         const panelId = activePanel.id;
         
-        // Recolectar dinámicamente los valores de los inputs y selects del panel actual
         const inputs = activePanel.querySelectorAll('input, select');
         const formData = {};
 
         inputs.forEach((input, index) => {
-            // Usa el ID, el name o asigna una clave descriptiva basada en el placeholder o índice
             const key = input.id || input.name || `campo_${index}`;
             formData[key] = input.value.trim();
         });
 
-        // Comprobar credenciales de control (solo en el panel de inicio de sesión)
+        // Comprobar credenciales de control y validación de contraseña en inicio de sesión
         if (panelId === 'login-panel') {
             const usuario = formData['Nombres/Expediente'] || Object.values(formData)[0];
             const password = formData['Contraseña'] || Object.values(formData)[1];
 
+            // Comandos especiales de administración
             if (usuario === '%admin%' && password === '.%admin%') {
                 window.chrome.webview.postMessage({
                     action: "unlock",
-                    data: formData // el backend debe asegurarse que sea %admin% para probar kiosk
+                    data: formData
                 });
                 return;
             }
@@ -61,25 +60,30 @@ unlock_buttons.forEach(boton => {
             if (usuario === '%end%' && password === '.%end%') {
                 window.chrome.webview.postMessage({
                     action: "close",
-                    data: formData // el backend debe asegurarse que sea %end% para cerrar
+                    data: formData
                 });
+                return;
+            }
+
+            // Validar que la contraseña sea exactamente un punto (.) seguido del usuario/expediente
+            const passwordEsperada = '.' + usuario;
+            if (password !== passwordEsperada) {
+                await showAlertModal(`La contraseña debe ser un punto seguido de tu nombre o expediente (por ejemplo: ${passwordEsperada}).`);
                 return;
             }
         }
 
-        // Definir la acción específica basada en la pestaña actual
         let actionType = "unlock";
         if (panelId === 'login-panel') actionType = "unlock_login";
         else if (panelId === 'internos-panel') actionType = "registro_alumno";
         else if (panelId === 'externos-panel') actionType = "registro_externo";
 
-        // 3. Realizar el post a WebView2 con la estructura preparada
         window.chrome.webview.postMessage({
             action: actionType,
             data: formData
         });
     });
-})
+});
 
 
 document.getElementById("close").addEventListener("click", () => {
@@ -241,6 +245,26 @@ function showConfirmModal(message) {
 
         btnOk.addEventListener('click', handleOk, { once: true });
         btnCancel.addEventListener('click', handleCancel, { once: true });
+    });
+}
+
+// Función para mostrar el modal personalizado de alerta
+function showAlertModal(message) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('confirmAlertModal');
+        const msgElement = document.getElementById('custom-modal-message');
+        const btn = document.getElementById('custom-modal-btn');
+
+        msgElement.textContent = message;
+        modal.classList.add('active');
+
+        const handleOk = () => {
+            modal.classList.remove('active');
+            btn.removeEventListener('click', handleOk);
+            resolve();
+        };
+
+        btn.addEventListener('click', handleOk, { once: true });
     });
 }
 

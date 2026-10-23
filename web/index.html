@@ -40,7 +40,7 @@
         <div class="form-group">
             <div class="input-wrapper" style="position: relative;"> <!-- Asegúrate de que el contenedor tenga position: relative -->
                 <input type="password" id="contrasena" name="contrasena" placeholder="Contraseña" class="password-input">
-                <span class="input-tooltip">Ej: .123456 o .Maria Jose</span>
+                <div class="input-tooltip">La contraseña es un punto seguido de tu nombre/expediente (ej. .123456 o .Maria Jose)</div>
                 <button type="button" id="toggle-password" class="password-toggle-btn" aria-label="Mostrar contraseña">
                     <!-- Icono Ojo Abierto (Mostrar) -->
                     <svg xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-eye">
@@ -131,6 +131,16 @@
             <div class="modal-buttons">
                 <button id="confirm-cancel" class="modal-btn cancel">Cancelar</button>
                 <button id="confirm-ok" class="modal-btn accept">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Alerta Personalizado -->
+    <div id="confirmAlertModal" class="modal-overlay">
+        <div class="modal-content">
+            <p id="custom-modal-message"></p>
+            <div class="modal-buttons" style="justify-content: center;">
+                <button type="button" id="custom-modal-btn" class="modal-btn accept">Aceptar</button>
             </div>
         </div>
     </div>
