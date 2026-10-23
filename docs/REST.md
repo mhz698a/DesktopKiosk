@@ -92,7 +92,7 @@ Si el directorio o el archivo no existen, se crean. El valor se guarda bajo la s
 server_control_ip=192.168.1.10
 ~~~
 
-Una respuesta 202 Accepted confirma que el valor se guardó. Un JSON o una IP inválidos producen 400 Bad Request; un fallo al escribir el archivo produce 500 Internal Server Error; un token ausente o incorrecto produce 401 Unauthorized.
+Una respuesta 202 Accepted confirma que el valor se guardó. Un JSON o una IP inválidos producen 400 Bad Request; un fallo al escribir el archivo produce 500 Internal Server Error; un token incorrecto produce 401 Unauthorized.
 
 Ejemplo desde PowerShell:
 
