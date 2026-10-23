@@ -4,11 +4,11 @@ El cliente expone un servidor HTTP en el puerto **7085** para controlar el estad
 
 ## Seguridad
 
-El servidor no inicia si `DESKTOPKIOSK_API_TOKEN` no está definido.
+Si `DESKTOPKIOSK_API_TOKEN` no está definido, el servidor puede atender peticiones GET de recursos estáticos, pero rechaza todas las peticiones POST con `401 Unauthorized`.
 
-Por defecto escucha únicamente en `127.0.0.1`. Para aceptar conexiones desde otra máquina se debe definir explícitamente `DESKTOPKIOSK_HTTP_BIND` con una dirección IPv4 del equipo.
+Por defecto escucha en `0.0.0.0`, es decir, en todas las interfaces IPv4. Para limitarlo a una interfaz concreta, define `DESKTOPKIOSK_HTTP_BIND` con la dirección IPv4 correspondiente. El firewall de Windows debe restringir el puerto 7085 a las máquinas autorizadas.
 
-Cada petición requiere:
+Cada petición POST requiere:
 
 `Authorization: Bearer <DESKTOPKIOSK_API_TOKEN>`
 

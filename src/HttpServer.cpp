@@ -408,16 +408,6 @@ public:
             }
         }
 
-        // const std::string authorization = GetHeaderValue(request, "Authorization");
-        // const std::string expected = "Bearer " + apiToken;
-
-        // if (!ConstantTimeEquals(authorization, expected))
-        // {
-        //     SendResponse(client, BuildResponse(401, "Unauthorized", R"({"error":"unauthorized"})"));
-        //     closesocket(client);
-        //     return;
-        // }
-
         // All POST requests require the configured API token.
         const size_t headerEnd = request.find("\r\n\r\n");
         const std::string headers = headerEnd == std::string::npos
