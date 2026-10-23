@@ -23,15 +23,15 @@ std::string EnsureClientApiToken()
     const DWORD requiredSize = GetEnvironmentVariableW(L"APPDATA", nullptr, 0);
     if (requiredSize == 0)
     {
-        OutputDebugStringW(L"[SETTINGS] No se pudo resolver APPDATA; se usara el token integrado.\\n");
+        OutputDebugStringW(L"[SETTINGS] No se pudo resolver APPDATA; se usara el token integrado.\n");
         return kDefaultApiTokenAscii;
     }
 
-    std::wstring appDataPath(requiredSize, L'\\0');
+    std::wstring appDataPath(requiredSize, L'\0');
     const DWORD copiedSize = GetEnvironmentVariableW(L"APPDATA", appDataPath.data(), requiredSize);
     if (copiedSize == 0 || copiedSize >= requiredSize)
     {
-        OutputDebugStringW(L"[SETTINGS] No se pudo leer APPDATA; se usara el token integrado.\\n");
+        OutputDebugStringW(L"[SETTINGS] No se pudo leer APPDATA; se usara el token integrado.\n");
         return kDefaultApiTokenAscii;
     }
     appDataPath.resize(copiedSize);
@@ -42,23 +42,23 @@ std::string EnsureClientApiToken()
     std::filesystem::create_directories(settingsDirectory, error);
     if (error)
     {
-        OutputDebugStringW(L"[SETTINGS] No se pudo crear el directorio; se usara el token integrado.\\n");
+        OutputDebugStringW(L"[SETTINGS] No se pudo crear el directorio; se usara el token integrado.\n");
         return kDefaultApiTokenAscii;
     }
 
     wchar_t installedToken[256] = {};
     GetPrivateProfileStringW(L"security", L"api_token", L"", installedToken,
-        static_cast<DWORD>(std::size(installedToken)), settingsFile.c_str());
+        static_cast<DWORD>(sizeof(installedToken) / sizeof(installedToken[0])), settingsFile.c_str());
 
     if (std::wstring(installedToken) != kDefaultApiToken)
     {
         if (!WritePrivateProfileStringW(L"security", L"api_token", kDefaultApiToken, settingsFile.c_str()))
         {
-            OutputDebugStringW(L"[SETTINGS] No se pudo actualizar api_token; se usara el token integrado.\\n");
+            OutputDebugStringW(L"[SETTINGS] No se pudo actualizar api_token; se usara el token integrado.\n");
         }
         else
         {
-            OutputDebugStringW(L"[SETTINGS] Token sincronizado con el ejecutable.\\n");
+            OutputDebugStringW(L"[SETTINGS] Token sincronizado con el ejecutable.\n");
         }
     }
 

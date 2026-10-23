@@ -4,13 +4,13 @@ El cliente expone un servidor HTTP en el puerto **7085** para controlar el estad
 
 ## Seguridad
 
-Si `DESKTOPKIOSK_API_TOKEN` no está definido, el servidor puede atender peticiones GET de recursos estáticos, pero rechaza todas las peticiones POST con `401 Unauthorized`.
+El token `UAQinformatizacion7085` viene integrado en el ejecutable. Al iniciar, DesktopKiosk crea `%APPDATA%\\DesktopKiosk\\settings.ini` si hace falta y guarda el token bajo `[security]` y `api_token`. Si encuentra una clave vacía o un token distinto al incluido en la versión ejecutable, lo reemplaza automáticamente. No se necesita configurar variables de entorno ni editar el archivo manualmente.
 
 Por defecto escucha en `0.0.0.0`, es decir, en todas las interfaces IPv4. Para limitarlo a una interfaz concreta, define `DESKTOPKIOSK_HTTP_BIND` con la dirección IPv4 correspondiente. El firewall de Windows debe restringir el puerto 7085 a las máquinas autorizadas.
 
 Cada petición POST requiere:
 
-`Authorization: Bearer <DESKTOPKIOSK_API_TOKEN>`
+`Authorization: Bearer UAQinformatizacion7085`
 
 Los nombres de los encabezados HTTP se procesan sin distinguir mayúsculas y minúsculas, conforme a HTTP.
 
@@ -40,8 +40,7 @@ Respuesta correcta:
 Ejemplo desde PowerShell:
 
 ```powershell
-$env:DESKTOPKIOSK_API_TOKEN = "cambia-este-token"
-$headers = @{ Authorization = "Bearer cambia-este-token" }
+$headers = @{ Authorization = "Bearer UAQinformatizacion7085" }
 
 Invoke-WebRequest -Method POST -Uri "http://127.0.0.1:7085/api/kiosk/unlock" -Headers $headers
 ```
@@ -99,7 +98,7 @@ Ejemplo desde PowerShell:
 
 ~~~powershell
 $headers = @{
-    Authorization = "Bearer $env:DESKTOPKIOSK_API_TOKEN"
+    Authorization = "Bearer UAQinformatizacion7085"
     "Content-Type" = "application/json"
 }
 $body = @{
@@ -109,3 +108,14 @@ $body = @{
 
 Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:7085/api/kiosk/receive" -Headers $headers -Body $body
 ~~~
+
+## Token de la instalación
+
+El ejecutable usa el token integrado `UAQinformatizacion7085`. En cada inicio lo compara con el valor de `%APPDATA%\\DesktopKiosk\\settings.ini` y escribe el valor integrado si la clave falta o contiene otro token:
+
+~~~ini
+[security]
+api_token=UAQinformatizacion7085
+~~~
+
+El token es común para todas las instalaciones de esta versión y no debe considerarse un secreto fuerte. Limita el puerto 7085 en el firewall de Windows a los equipos autorizados.
