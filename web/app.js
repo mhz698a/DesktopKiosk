@@ -298,3 +298,41 @@ async function switchTab(evt, panelId) {
     targetPanel.classList.add('active');
     evt.currentTarget.classList.add('active');
 }
+
+// Validación y formato en tiempo real para campos de nombres y apellidos en registros
+document.addEventListener('DOMContentLoaded', () => {
+    const registrationPanels = document.querySelectorAll('#internos-panel, #externos-panel');
+    
+    registrationPanels.forEach(panel => {
+        const inputs = panel.querySelectorAll('input[type="text"]');
+        
+        inputs.forEach(input => {
+            const identifier = (input.id + input.placeholder + (input.name || '')).toLowerCase();
+            
+            // Detectar campos que correspondan a nombres o apellidos
+            if (identifier.includes('nombre') || identifier.includes('apellido') || identifier.includes('pat') || identifier.includes('mat')) {
+                
+                // En tiempo real mientras el usuario escribe
+                input.addEventListener('input', (e) => {
+                    let value = e.target.value;
+                    
+                    // 1. Eliminar números y símbolos especiales (solo permite letras, acentos, ñ y espacios)
+                    value = value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
+                    
+                    // 2. Evitar espacios múltiples consecutivos
+                    value = value.replace(/\s+/g, ' ');
+                    
+                    e.target.value = value;
+                });
+
+                // Opcional: Formatear la capitalización al salir del campo (blur)
+                input.addEventListener('blur', (e) => {
+                    let value = e.target.value.trim();
+                    // Convertir cada palabra a formato con inicial en mayúscula
+                    value = value.toLowerCase().replace(/(^|\s)\S/g, l => l.toUpperCase());
+                    e.target.value = value;
+                });
+            }
+        });
+    });
+});
