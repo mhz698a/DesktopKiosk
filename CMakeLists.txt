@@ -74,3 +74,15 @@ target_link_libraries(DesktopKiosk PRIVATE
     Qt6::Gui
     Qt6::Widgets
 )
+
+# --- MÉTODO DE DESPLIEGUE DIRECTO CON WINDEPLOYQT ---
+if(WIN32)
+    # Definimos la ruta directa a tu ejecutable de windeployqt
+    set(_qt_bin_dir "C:/Qt/6.11.2/msvc2022_64/bin")
+
+    # Comando post-construcción sin llamadas intermedias a scripts de CMake
+    add_custom_command(TARGET DesktopKiosk POST_BUILD
+        COMMAND "${_qt_bin_dir}/windeployqt.exe" --debug "$<TARGET_FILE:DesktopKiosk>"
+        COMMENT "Copiando DLLs de Qt a la carpeta de salida..."
+    )
+endif()

@@ -4,13 +4,13 @@ El cliente expone un servidor HTTP en el puerto **7085** para controlar el estad
 
 ## Seguridad
 
-El servidor no inicia si `DESKTOPKIOSK_API_TOKEN` no está definido.
+El token `UAQinformatizacion7085` viene integrado en el ejecutable. Al iniciar, DesktopKiosk crea `%APPDATA%\DesktopKiosk\settings.ini` si hace falta y guarda el token bajo `[security]` y `api_token`. Si encuentra una clave vacía o un token distinto al incluido en la versión ejecutable, lo reemplaza automáticamente. No se necesita configurar variables de entorno ni editar el archivo manualmente.
 
-Por defecto escucha únicamente en `127.0.0.1`. Para aceptar conexiones desde otra máquina se debe definir explícitamente `DESKTOPKIOSK_HTTP_BIND` con una dirección IPv4 del equipo.
+Por defecto escucha en `0.0.0.0`, es decir, en todas las interfaces IPv4. Para limitarlo a una interfaz concreta, define `DESKTOPKIOSK_HTTP_BIND` con la dirección IPv4 correspondiente. El firewall de Windows debe restringir el puerto 7085 a las máquinas autorizadas.
 
-Cada petición requiere:
+Cada petición POST requiere:
 
-`Authorization: Bearer <DESKTOPKIOSK_API_TOKEN>`
+`Authorization: Bearer UAQinformatizacion7085`
 
 Los nombres de los encabezados HTTP se procesan sin distinguir mayúsculas y minúsculas, conforme a HTTP.
 
@@ -31,6 +31,7 @@ Todos son `POST`:
 - `/api/kiosk/unlock`
 - `/api/kiosk/lock`
 - `/api/kiosk/close`
+- `/api/kiosk/receive`
 
 Respuesta correcta:
 
@@ -39,8 +40,7 @@ Respuesta correcta:
 Ejemplo desde PowerShell:
 
 ```powershell
-$env:DESKTOPKIOSK_API_TOKEN = "cambia-este-token"
-$headers = @{ Authorization = "Bearer cambia-este-token" }
+$headers = @{ Authorization = "Bearer UAQinformatizacion7085" }
 
 Invoke-WebRequest -Method POST -Uri "http://127.0.0.1:7085/api/kiosk/unlock" -Headers $headers
 ```
@@ -66,3 +66,56 @@ La clase `DesktopKioskSessionWindow` se registra una sola vez durante la inicial
 La ventana principal se crea como `WS_POPUP` y se ajusta al rectángulo del monitor principal. WebView2 utiliza todo el área cliente disponible.
 
 Ante `WM_DISPLAYCHANGE` o `WM_DPICHANGED`, la aplicación vuelve a calcular el rectángulo del monitor y reaplica la configuración de pantalla completa para mantener el kiosco ajustado a la configuración actual de pantalla.
+
+
+## Registrar o actualizar la IP del servidor central
+
+Enviar un POST a **http://<IP_DEL_CLIENTE>:7085/api/kiosk/receive** con el encabezado Content-Type: application/json y el token Bearer `UAQinformatizacion7085`. El cuerpo tiene esta estructura:
+
+~~~json
+{
+  "action": "receive",
+  "data": {
+    "server_control_ip": "192.168.1.10"
+  }
+}
+~~~
+
+El cliente valida que server_control_ip sea una dirección IPv4. Cada petición válida sobrescribe el valor anterior en:
+
+**%APPDATA%\DesktopKiosk\settings.ini**
+
+Si el directorio o el archivo no existen, se crean. El valor se guarda bajo la sección [network] y la clave server_control_ip:
+
+~~~ini
+[network]
+server_control_ip=192.168.1.10
+~~~
+
+Una respuesta 202 Accepted confirma que el valor se guardó. Un JSON o una IP inválidos producen 400 Bad Request; un fallo al escribir el archivo produce 500 Internal Server Error; un token incorrecto produce 401 Unauthorized.
+
+Ejemplo desde PowerShell:
+
+~~~powershell
+$headers = @{
+    Authorization = "Bearer UAQinformatizacion7085"
+    "Content-Type" = "application/json"
+}
+$body = @{
+    action = "receive"
+    data = @{ server_control_ip = "192.168.1.10" }
+} | ConvertTo-Json -Depth 3
+
+Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:7085/api/kiosk/receive" -Headers $headers -Body $body
+~~~
+
+## Token de la instalación
+
+El ejecutable usa el token integrado `UAQinformatizacion7085`. En cada inicio lo compara con el valor de `%APPDATA%\DesktopKiosk\settings.ini` y escribe el valor integrado si la clave falta o contiene otro token:
+
+~~~ini
+[security]
+api_token=UAQinformatizacion7085
+~~~
+
+El token es común para todas las instalaciones de esta versión y no debe considerarse un secreto fuerte. Limita el puerto 7085 en el firewall de Windows a los equipos autorizados.

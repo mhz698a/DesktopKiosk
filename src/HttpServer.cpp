@@ -6,7 +6,15 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 
+#include <QByteArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QJsonValue>
+
 #include <algorithm>
+#include <charconv>
+#include <filesystem>
 #include <atomic>
 #include <condition_variable>
 #include <cctype>
@@ -16,6 +24,7 @@
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <system_error>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -67,6 +76,22 @@ std::string BuildResponse(int status, const char* reason, const std::string& bod
     return response.str();
 }
 
+int GetImageResourceId(const std::string& path)
+{
+    if (path == "/imgs/fondo1.png")
+        return IDR_FONDO1_PNG;
+    if (path == "/imgs/fondo2.png")
+        return IDR_FONDO2_PNG;
+    if (path == "/imgs/logo_1.png")
+        return IDR_LOGO_1_PNG;
+    if (path == "/imgs/logo_2.png")
+        return IDR_LOGO_2_PNG;
+    if (path == "/imgs/mosaico.png")
+        return IDR_MOSAICO_PNG;
+
+    return 0;
+}
+
 bool HeaderNameEquals(const std::string& actual, const std::string& expected)
 {
     if (actual.size() != expected.size())
@@ -107,6 +132,59 @@ std::string GetHeaderValue(const std::string& request, const std::string& name)
     }
 
     return {};
+}
+
+std::string GetRequestBody(const std::string& request)
+{
+    const size_t headerEnd = request.find("\r\n\r\n");
+    if (headerEnd == std::string::npos)
+        return {};
+
+    return request.substr(headerEnd + 4);
+}
+
+bool IsValidIPv4(const std::string& address)
+{
+    IN_ADDR parsedAddress{};
+    return !address.empty() && InetPtonA(AF_INET, address.c_str(), &parsedAddress) == 1;
+}
+
+bool SaveServerControlIp(const std::string& ipAddress)
+{
+    // APPDATA ya apunta a AppData\Roaming para el usuario actual.
+    const DWORD requiredSize = GetEnvironmentVariableW(L"APPDATA", nullptr, 0);
+    if (requiredSize == 0)
+        return false;
+
+    std::wstring appDataPath(requiredSize, L'\0');
+    const DWORD copiedSize = GetEnvironmentVariableW(
+        L"APPDATA",
+        appDataPath.data(),
+        requiredSize
+    );
+
+    if (copiedSize == 0 || copiedSize >= requiredSize)
+        return false;
+
+    appDataPath.resize(copiedSize);
+
+    const std::filesystem::path settingsDirectory =
+        std::filesystem::path(appDataPath) / L"DesktopKiosk";
+
+    std::error_code error;
+    std::filesystem::create_directories(settingsDirectory, error);
+    if (error)
+        return false;
+
+    const std::filesystem::path settingsFile = settingsDirectory / L"settings.ini";
+    const std::wstring wideIpAddress(ipAddress.begin(), ipAddress.end());
+
+    return WritePrivateProfileStringW(
+        L"network",
+        L"server_control_ip",
+        wideIpAddress.c_str(),
+        settingsFile.c_str()
+    ) != FALSE;
 }
 
 void ConfigureSocketTimeouts(SOCKET client)
@@ -155,25 +233,52 @@ bool ReceiveRequest(SOCKET client, std::string& request)
     char buffer[4096];
     request.clear();
 
+    size_t expectedSize = 0;
+    bool headersParsed = false;
+
     while (request.size() < kMaxRequestBytes)
     {
         const int received = recv(client, buffer, sizeof(buffer), 0);
+        if (received == SOCKET_ERROR || received == 0)
+            return false;
 
-        if (received == SOCKET_ERROR)
+        if (request.size() + static_cast<size_t>(received) > kMaxRequestBytes)
+            return false;
+
+        request.append(buffer, static_cast<size_t>(received));
+
+        if (!headersParsed)
         {
-            const int error = WSAGetLastError();
-            if (error == WSAETIMEDOUT)
+            const size_t headerEnd = request.find("\r\n\r\n");
+            if (headerEnd == std::string::npos)
+                continue;
+
+            // Include the terminating CRLF to parse the final header line.
+            const std::string headers = request.substr(0, headerEnd + 2);
+            if (!GetHeaderValue(headers, "Transfer-Encoding").empty())
+                return false; // Chunked request bodies are not supported.
+
+            size_t contentLength = 0;
+            const std::string contentLengthText = GetHeaderValue(headers, "Content-Length");
+            if (!contentLengthText.empty())
+            {
+                const char* first = contentLengthText.data();
+                const char* last = first + contentLengthText.size();
+                const auto parsed = std::from_chars(first, last, contentLength);
+
+                if (parsed.ec != std::errc{} || parsed.ptr != last)
+                    return false;
+            }
+
+            const size_t bodyStart = headerEnd + 4;
+            if (contentLength > kMaxRequestBytes - bodyStart)
                 return false;
 
-            return false;
+            expectedSize = bodyStart + contentLength;
+            headersParsed = true;
         }
 
-        if (received == 0)
-            return false;
-
-        request.append(buffer, received);
-
-        if (request.find("\r\n\r\n") != std::string::npos)
+        if (headersParsed && request.size() >= expectedSize)
             return true;
     }
 
@@ -277,21 +382,99 @@ public:
                 closesocket(client);
                 return;
             }
+            else
+            {
+                const int imageResourceId = GetImageResourceId(path);
+                if (imageResourceId != 0)
+                {
+                    std::string imageContent = GetEmbeddedResource(imageResourceId);
 
-            SendResponse(client, BuildResponse(404, "Not Found", R"({"error":"not_found"})"));
+                    if (imageContent.empty())
+                    {
+                        SendResponse(client, BuildResponse(404, "Not Found", R"({"error":"resource_not_found"})"));
+                    }
+                    else
+                    {
+                        SendResponse(client, BuildResponse(200, "OK", imageContent, "image/png"));
+                    }
+                }
+                else
+                {
+                    SendResponse(client, BuildResponse(404, "Not Found", R"({"error":"not_found"})"));
+                }
+
+                closesocket(client);
+                return;
+            }
+        }
+
+        // All POST requests require the configured API token.
+        const size_t headerEnd = request.find("\r\n\r\n");
+        const std::string headers = headerEnd == std::string::npos
+            ? request
+            : request.substr(0, headerEnd + 2);
+        const std::string authorization = GetHeaderValue(headers, "Authorization");
+        const std::string expectedAuthorization = "Bearer " + apiToken;
+
+        if (apiToken.empty() || !ConstantTimeEquals(authorization, expectedAuthorization))
+        {
+            SendResponse(client, BuildResponse(401, "Unauthorized", R"({"error":"unauthorized"})"));
             closesocket(client);
             return;
         }
 
-        // const std::string authorization = GetHeaderValue(request, "Authorization");
-        // const std::string expected = "Bearer " + apiToken;
+        if (path == "/api/kiosk/receive")
+        {
+            const std::string body = GetRequestBody(request);
+            QJsonParseError parseError{};
+            const QJsonDocument json = QJsonDocument::fromJson(
+                QByteArray::fromStdString(body),
+                &parseError
+            );
 
-        // if (!ConstantTimeEquals(authorization, expected))
-        // {
-        //     SendResponse(client, BuildResponse(401, "Unauthorized", R"({"error":"unauthorized"})"));
-        //     closesocket(client);
-        //     return;
-        // }
+            if (parseError.error != QJsonParseError::NoError || !json.isObject())
+            {
+                SendResponse(client, BuildResponse(400, "Bad Request", R"({"error":"invalid_json"})"));
+                closesocket(client);
+                return;
+            }
+
+            const QJsonObject message = json.object();
+            if (message.value(QStringLiteral("action")).toString() != QStringLiteral("receive")
+                || !message.value(QStringLiteral("data")).isObject())
+            {
+                SendResponse(client, BuildResponse(400, "Bad Request", R"({"error":"invalid_payload"})"));
+                closesocket(client);
+                return;
+            }
+
+            const QJsonObject data = message.value(QStringLiteral("data")).toObject();
+            const QJsonValue ipValue = data.value(QStringLiteral("server_control_ip"));
+            const std::string serverControlIp = ipValue.isString()
+                ? ipValue.toString().trimmed().toStdString()
+                : std::string{};
+
+            if (!IsValidIPv4(serverControlIp))
+            {
+                SendResponse(client, BuildResponse(400, "Bad Request", R"({"error":"invalid_server_control_ip"})"));
+                closesocket(client);
+                return;
+            }
+
+            if (!SaveServerControlIp(serverControlIp))
+            {
+                SendResponse(client, BuildResponse(500, "Internal Server Error", R"({"error":"settings_write_failed"})"));
+                closesocket(client);
+                return;
+            }
+
+            const std::string responseBody =
+                "{\"status\":\"accepted\",\"action\":\"receive\",\"server_control_ip\":\""
+                + serverControlIp + "\"}";
+            SendResponse(client, BuildResponse(202, "Accepted", responseBody));
+            closesocket(client);
+            return;
+        }
 
         std::string action;
         if (path == "/api/kiosk/unlock")
@@ -405,12 +588,7 @@ bool HttpServer::Start(unsigned short port, RequestHandler handler)
     if (m_impl != nullptr)
         return false;
 
-    const std::string token = GetEnvironmentValue("DESKTOPKIOSK_API_TOKEN");
-    if (token.empty())
-    {
-        OutputDebugStringA("[HTTP] DESKTOPKIOSK_API_TOKEN no esta configurado; REST deshabilitado.\n");
-        // return false;
-    }
+    const std::string token = EnsureClientApiToken();
 
     const std::string bindAddress = [&]()
     {

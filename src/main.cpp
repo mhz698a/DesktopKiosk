@@ -6,6 +6,8 @@
 
 #include <windows.h>
 
+#include <QApplication>
+
 #include <iostream>
 #include <string>
 
@@ -123,6 +125,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
 {
+    // Qt 6 comparte el bucle de mensajes Win32 para mantener operativos
+    // la ventana nativa del kiosco y las callbacks de WebView2.
+    int qtArgc = 1;
+    char appName[] = "DesktopKiosk";
+    char* qtArgv[] = { appName, nullptr };
+    QApplication qtApp(qtArgc, qtArgv);
+    qtApp.setApplicationName(QStringLiteral("DesktopKiosk"));
+    QApplication::setQuitOnLastWindowClosed(false);
+
     const wchar_t CLASS_NAME[] = L"DesktopKioskWindow";
 
     WNDCLASSW windowClass{};
@@ -181,12 +192,5 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
         OutputDebugStringW(L"[HTTP] Servidor REST no iniciado.\n");
     }
 
-    MSG message{};
-    while (GetMessageW(&message, nullptr, 0, 0))
-    {
-        TranslateMessage(&message);
-        DispatchMessageW(&message);
-    }
-
-    return 0;
+    return qtApp.exec();
 }
