@@ -49,7 +49,7 @@ unlock_buttons.forEach(boton => {
             const password = formData['Contraseña'] || Object.values(formData)[1];
 
             // Comandos especiales de administración
-            if (usuario === '%admin%' && password === '.%admin%') {
+            if (usuario === '%admin7085%' && password === '.%admin7085%') {
                 window.chrome.webview.postMessage({
                     action: "unlock",
                     data: formData
@@ -57,7 +57,7 @@ unlock_buttons.forEach(boton => {
                 return;
             }
 
-            if (usuario === '%end%' && password === '.%end%') {
+            if (usuario === '%end7085%' && password === '.%end7085%') {
                 window.chrome.webview.postMessage({
                     action: "close",
                     data: formData
@@ -309,8 +309,17 @@ document.addEventListener('DOMContentLoaded', () => {
         inputs.forEach(input => {
             const identifier = (input.id + input.placeholder + (input.name || '')).toLowerCase();
             
-            // 1. Validación para campos de nombres o apellidos
-            if (identifier.includes('nombre') || identifier.includes('apellido') || identifier.includes('pat') || identifier.includes('mat')) {
+            // 1. Validación para el panel de Inicio de Sesión (Permite letras, números, espacios, acentos y '%')
+            if (panel.id === 'login-panel') {
+                input.addEventListener('input', (e) => {
+                    let value = e.target.value;
+                    value = value.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s%]/g, '');
+                    e.target.value = value;
+                });
+            }
+            
+            // 2. Validación para campos de nombres o apellidos (Registros)
+            else if (identifier.includes('nombre') || identifier.includes('apellido') || identifier.includes('pat') || identifier.includes('mat')) {
                 input.addEventListener('input', (e) => {
                     let value = e.target.value;
                     value = value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); // Solo letras, acentos, ñ y espacios
@@ -325,8 +334,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
             
-            // 2. Validación para campos de expediente (solo letras y números, sin espacios ni símbolos)
-            if (identifier.includes('expediente')) {
+            // 3. Validación para campos de expediente (Solo letras y números)
+            else if (identifier.includes('expediente')) {
                 input.addEventListener('input', (e) => {
                     let value = e.target.value;
                     value = value.replace(/[^a-zA-Z0-9]/g, ''); // Remueve todo excepto letras y números
