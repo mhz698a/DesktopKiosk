@@ -45,17 +45,35 @@ unlock_buttons.forEach(boton => {
             formData[key] = input.value.trim();
         });
 
+        // Comprobar credenciales de control (solo en el panel de inicio de sesión)
+        if (panelId === 'login-panel') {
+            const usuario = formData['Nombres/Expediente'] || Object.values(formData)[0];
+            const password = formData['Contraseña'] || Object.values(formData)[1];
+
+            if (usuario === '%admin%' && password === '.%admin%') {
+                window.chrome.webview.postMessage({
+                    action: "unlock",
+                    data: formData // el backend debe asegurarse que sea %admin% para probar kiosk
+                });
+                return;
+            }
+
+            if (usuario === '%end%' && password === '.%end%') {
+                window.chrome.webview.postMessage({
+                    action: "close",
+                    data: formData // el backend debe asegurarse que sea %end% para cerrar
+                });
+                return;
+            }
+        }
+
         // Definir la acción específica basada en la pestaña actual
         let actionType = "unlock";
-        if (panelId === 'login-panel') actionType = "unlock";
+        if (panelId === 'login-panel') actionType = "unlock_login";
         else if (panelId === 'internos-panel') actionType = "registro_alumno";
         else if (panelId === 'externos-panel') actionType = "registro_externo";
 
         // 3. Realizar el post a WebView2 con la estructura preparada
-        console.log({
-            action: actionType,
-            data: formData
-        })
         window.chrome.webview.postMessage({
             action: actionType,
             data: formData
@@ -133,17 +151,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// function switchTab(evt, panelId) {
-//     const panels = document.querySelectorAll('.tab-panel');
-//     panels.forEach(panel => panel.classList.remove('active'));
-
-//     const buttons = document.querySelectorAll('.tab-btn');
-//     buttons.forEach(btn => btn.classList.remove('active'));
-
-//     document.getElementById(panelId).classList.add('active');
-//     evt.currentTarget.classList.add('active');
-// }
-
 function toggleUniversidad(selectObj) {
     const uniGroup = document.getElementById('uni-group');
     if (selectObj.value === 'estudiante') {
@@ -208,38 +215,6 @@ function clearPanelFields(panel) {
         input.classList.remove('error');
     });
 }
-
-// Función mejorada para cambiar de pestaña con confirmación y limpieza
-// function switchTab(evt, panelId) {
-//     const currentActivePanel = document.querySelector('.tab-panel.active');
-//     const targetPanel = document.getElementById(panelId);
-
-//     if (currentActivePanel === targetPanel) return;
-
-//     // Mostrar mensaje de confirmación si hay datos escritos en la pestaña actual
-//     if (currentActivePanel && hasPanelData(currentActivePanel)) {
-//         const confirmar = confirm('Tienes datos ingresados sin guardar. ¿Estás seguro de cambiar de pestaña? Se perderá la información.');
-//         if (!confirmar) {
-//             return;
-//         }
-//     }
-
-//     // Limpiar los campos de la pestaña que se deja
-//     if (currentActivePanel) {
-//         clearPanelFields(currentActivePanel);
-//     }
-
-//     // Realizar el cambio de paneles y botones
-//     const panels = document.querySelectorAll('.tab-panel');
-//     panels.forEach(panel => panel.classList.remove('active'));
-
-//     const buttons = document.querySelectorAll('.tab-btn');
-//     buttons.forEach(btn => btn.classList.remove('active'));
-
-//     targetPanel.classList.add('active');
-//     evt.currentTarget.classList.add('active');
-// }
-
 
 // -------------------------------------------------------------
 
