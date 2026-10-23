@@ -588,11 +588,7 @@ bool HttpServer::Start(unsigned short port, RequestHandler handler)
     if (m_impl != nullptr)
         return false;
 
-    const std::string token = GetEnvironmentValue("DESKTOPKIOSK_API_TOKEN");
-    if (token.empty())
-    {
-        OutputDebugStringA("[HTTP] DESKTOPKIOSK_API_TOKEN no esta configurado; las peticiones POST seran rechazadas.\n");
-    }
+    const std::string token = EnsureClientApiToken();
 
     const std::string bindAddress = [&]()
     {
