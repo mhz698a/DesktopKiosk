@@ -4,7 +4,7 @@ El cliente expone un servidor HTTP en el puerto **7085** para controlar el estad
 
 ## Seguridad
 
-El token `UAQinformatizacion7085` viene integrado en el ejecutable. Al iniciar, DesktopKiosk crea `%APPDATA%\\DesktopKiosk\\settings.ini` si hace falta y guarda el token bajo `[security]` y `api_token`. Si encuentra una clave vacía o un token distinto al incluido en la versión ejecutable, lo reemplaza automáticamente. No se necesita configurar variables de entorno ni editar el archivo manualmente.
+El token `UAQinformatizacion7085` viene integrado en el ejecutable. Al iniciar, DesktopKiosk crea `%APPDATA%\DesktopKiosk\settings.ini` si hace falta y guarda el token bajo `[security]` y `api_token`. Si encuentra una clave vacía o un token distinto al incluido en la versión ejecutable, lo reemplaza automáticamente. No se necesita configurar variables de entorno ni editar el archivo manualmente.
 
 Por defecto escucha en `0.0.0.0`, es decir, en todas las interfaces IPv4. Para limitarlo a una interfaz concreta, define `DESKTOPKIOSK_HTTP_BIND` con la dirección IPv4 correspondiente. El firewall de Windows debe restringir el puerto 7085 a las máquinas autorizadas.
 
@@ -70,7 +70,7 @@ Ante `WM_DISPLAYCHANGE` o `WM_DPICHANGED`, la aplicación vuelve a calcular el r
 
 ## Registrar o actualizar la IP del servidor central
 
-Enviar un POST a **http://<IP_DEL_CLIENTE>:7085/api/kiosk/receive** con el encabezado Content-Type: application/json y el token Bearer configurado en DESKTOPKIOSK_API_TOKEN. El cuerpo tiene esta estructura:
+Enviar un POST a **http://<IP_DEL_CLIENTE>:7085/api/kiosk/receive** con el encabezado Content-Type: application/json y el token Bearer `UAQinformatizacion7085`. El cuerpo tiene esta estructura:
 
 ~~~json
 {
@@ -111,7 +111,7 @@ Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:7085/api/kiosk/receive" -H
 
 ## Token de la instalación
 
-El ejecutable usa el token integrado `UAQinformatizacion7085`. En cada inicio lo compara con el valor de `%APPDATA%\\DesktopKiosk\\settings.ini` y escribe el valor integrado si la clave falta o contiene otro token:
+El ejecutable usa el token integrado `UAQinformatizacion7085`. En cada inicio lo compara con el valor de `%APPDATA%\DesktopKiosk\settings.ini` y escribe el valor integrado si la clave falta o contiene otro token:
 
 ~~~ini
 [security]
