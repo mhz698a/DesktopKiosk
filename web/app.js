@@ -301,35 +301,35 @@ async function switchTab(evt, panelId) {
 
 // Validación y formato en tiempo real para campos de nombres y apellidos en registros
 document.addEventListener('DOMContentLoaded', () => {
-    const registrationPanels = document.querySelectorAll('#internos-panel, #externos-panel');
+    const panels = document.querySelectorAll('#login-panel, #internos-panel, #externos-panel');
     
-    registrationPanels.forEach(panel => {
+    panels.forEach(panel => {
         const inputs = panel.querySelectorAll('input[type="text"]');
         
         inputs.forEach(input => {
             const identifier = (input.id + input.placeholder + (input.name || '')).toLowerCase();
             
-            // Detectar campos que correspondan a nombres o apellidos
+            // 1. Validación para campos de nombres o apellidos
             if (identifier.includes('nombre') || identifier.includes('apellido') || identifier.includes('pat') || identifier.includes('mat')) {
-                
-                // En tiempo real mientras el usuario escribe
                 input.addEventListener('input', (e) => {
                     let value = e.target.value;
-                    
-                    // 1. Eliminar números y símbolos especiales (solo permite letras, acentos, ñ y espacios)
-                    value = value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
-                    
-                    // 2. Evitar espacios múltiples consecutivos
-                    value = value.replace(/\s+/g, ' ');
-                    
+                    value = value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); // Solo letras, acentos, ñ y espacios
+                    value = value.replace(/\s+/g, ' '); // Evitar espacios múltiples
                     e.target.value = value;
                 });
 
-                // Opcional: Formatear la capitalización al salir del campo (blur)
                 input.addEventListener('blur', (e) => {
                     let value = e.target.value.trim();
-                    // Convertir cada palabra a formato con inicial en mayúscula
                     value = value.toLowerCase().replace(/(^|\s)\S/g, l => l.toUpperCase());
+                    e.target.value = value;
+                });
+            }
+            
+            // 2. Validación para campos de expediente (solo letras y números, sin espacios ni símbolos)
+            if (identifier.includes('expediente')) {
+                input.addEventListener('input', (e) => {
+                    let value = e.target.value;
+                    value = value.replace(/[^a-zA-Z0-9]/g, ''); // Remueve todo excepto letras y números
                     e.target.value = value;
                 });
             }
