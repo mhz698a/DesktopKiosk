@@ -165,10 +165,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function toggleUniversidad(selectObj) {
     const uniGroup = document.getElementById('uni-group');
+    const selectUniversidad = document.getElementById('universidad-ext');
+    
     if (selectObj.value === 'estudiante') {
         uniGroup.style.display = 'block';
     } else {
         uniGroup.style.display = 'none';
+        if (selectUniversidad) {
+            selectUniversidad.selectedIndex = 0;
+        }
     }
 }
 
