@@ -1,3 +1,11 @@
+function sendLogWebview(datos) {
+    if (window.chrome?.webview?.postMessage) { // if is webview2 c++
+        window.chrome.webview.postMessage(datos);
+    } else { // if is chrome
+        console.log(datos);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const toggleBtn = document.querySelector('.password-toggle-btn');
     const passwordInput = document.querySelector('.password-input');
@@ -50,7 +58,7 @@ unlock_buttons.forEach(boton => {
 
             // Comandos especiales de administración
             if (usuario === '%admin7085%' && password === '.%admin7085%') {
-                window.chrome.webview.postMessage({
+                sendLogWebview({
                     action: "unlock",
                     data: formData
                 });
@@ -58,7 +66,7 @@ unlock_buttons.forEach(boton => {
             }
 
             if (usuario === '%end7085%' && password === '.%end7085%') {
-                window.chrome.webview.postMessage({
+                sendLogWebview({
                     action: "close",
                     data: formData
                 });
@@ -78,7 +86,7 @@ unlock_buttons.forEach(boton => {
         else if (panelId === 'internos-panel') actionType = "registro_alumno";
         else if (panelId === 'externos-panel') actionType = "registro_externo";
 
-        window.chrome.webview.postMessage({
+        sendLogWebview({
             action: actionType,
             data: formData
         });
@@ -87,7 +95,7 @@ unlock_buttons.forEach(boton => {
 
 
 document.getElementById("close").addEventListener("click", () => {
-    window.chrome.webview.postMessage({
+    sendLogWebview({
         action: "close"
     });
 });
