@@ -184,6 +184,9 @@ function validarPanelActivo() {
 
     const inputs = activePanel.querySelectorAll('input, select');
     let isValid = true;
+    let mensajeError = 'Por favor, completa todos los campos requeridos.';
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     inputs.forEach(input => {
         // Si el elemento o su contenedor están ocultos (display: none), se omite de la validación
@@ -195,13 +198,17 @@ function validarPanelActivo() {
         if (!input.value.trim() || (input.tagName === 'SELECT' && input.selectedIndex === 0)) {
             input.classList.add('error');
             isValid = false;
+        } else if (input.type === 'email' && !emailRegex.test(input.value.trim())) {
+            input.classList.add('error');
+            isValid = false;
+            mensajeError = 'Por favor, ingresa un correo electrónico válido.';
         } else {
             input.classList.remove('error');
         }
     });
 
     if (!isValid) {
-        alert('Por favor, completa todos los campos requeridos.');
+        showAlertModal(mensajeError);
     }
 
     return isValid;
