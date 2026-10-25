@@ -281,6 +281,8 @@ async function switchTab(evt, panelId) {
     const currentActivePanel = document.querySelector('.tab-panel.active');
     const targetPanel = document.getElementById(panelId);
 
+    const clickedBtn = evt.currentTarget;
+
     if (currentActivePanel === targetPanel) return;
 
     // Mostrar mensaje de confirmación si hay datos escritos en la pestaña actual
@@ -304,7 +306,7 @@ async function switchTab(evt, panelId) {
     buttons.forEach(btn => btn.classList.remove('active'));
 
     targetPanel.classList.add('active');
-    evt.currentTarget.classList.add('active');
+    clickedBtn.classList.add('active');
 }
 
 // Validación y formato en tiempo real para campos de nombres y apellidos en registros
