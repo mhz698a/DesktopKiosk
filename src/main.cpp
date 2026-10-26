@@ -241,19 +241,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
         return 1;
     }
 
-    // Configurar el firewall antes de mostrar el kiosco a pantalla completa.
-    if (!EnsureKioskFirewallRule())
-    {
-        MessageBoxW(
-            nullptr,
-            L"No se pudo autorizar DesktopKiosk en el Firewall de Windows. Se requieren permisos para permitir TCP 7085 en redes privadas y públicas.",
-            L"DesktopKiosk",
-            MB_ICONERROR | MB_OK
-        );
-        DestroyWindow(g_hwnd);
-        return 1;
-    }
-
     ConfigureFullscreenWindow(g_hwnd, true);
     UpdateWindow(g_hwnd);
 
