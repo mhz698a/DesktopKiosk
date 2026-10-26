@@ -1,3 +1,19 @@
+// El kiosco no expone menú contextual ni atajos de herramientas de desarrollo.
+document.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+});
+
+document.addEventListener("keydown", (event) => {
+    const key = event.key.toLowerCase();
+    const devToolsShortcut = key === "f12"
+        || (event.ctrlKey && event.shiftKey && ["i", "j", "c"].includes(key))
+        || (event.ctrlKey && key === "u");
+    if (devToolsShortcut) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+}, true);
+
 function sendLogWebview(datos) {
     if (window.chrome?.webview?.postMessage) { // if is webview2 c++
         window.chrome.webview.postMessage(datos);
@@ -330,6 +346,27 @@ if (window.chrome?.webview?.addEventListener) {
                 response.message
                 || "La IP del servidor central se recibió y guardó correctamente."
             );
+            return;
+        }
+
+        if (response?.type === "idle-warning") {
+            const idleWarning = document.getElementById("idle-warning");
+            if (idleWarning) {
+                idleWarning.textContent = response.message
+                    || "El kiosco se bloqueará en 2 minutos por inactividad. Mueva el mouse o pulse una tecla para cancelar el bloqueo.";
+                idleWarning.classList.add("active");
+                idleWarning.setAttribute("aria-hidden", "false");
+            }
+            return;
+        }
+
+        if (response?.type === "idle-warning-cleared") {
+            const idleWarning = document.getElementById("idle-warning");
+            if (idleWarning) {
+                idleWarning.classList.remove("active");
+                idleWarning.setAttribute("aria-hidden", "true");
+                idleWarning.textContent = "";
+            }
             return;
         }
 
