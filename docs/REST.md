@@ -32,6 +32,7 @@ Todos son `POST`:
 - `/api/kiosk/lock`
 - `/api/kiosk/close`
 - `/api/kiosk/receive`
+- `/api/kiosk/central-request` (reenvía las solicitudes de inicio de sesión y registro al servidor central)
 
 Respuesta correcta:
 
