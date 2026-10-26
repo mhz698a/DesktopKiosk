@@ -6,6 +6,23 @@ function sendLogWebview(datos) {
     }
 }
 
+function resetToLoginTab() {
+    // 1. Limpiar los campos de todos los paneles
+    document.querySelectorAll('.tab-panel').forEach(panel => {
+        clearPanelFields(panel);
+    });
+
+    // 2. Cambiar la vista al panel y botón de inicio de sesión
+    const loginPanel = document.getElementById('login-panel');
+    const loginBtn = document.querySelector('.tabs-container .tab-btn');
+
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+
+    if (loginPanel) loginPanel.classList.add('active');
+    if (loginBtn) loginBtn.classList.add('active');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const toggleBtn = document.querySelector('.password-toggle-btn');
     const passwordInput = document.querySelector('.password-input');
@@ -58,14 +75,17 @@ unlock_buttons.forEach(boton => {
 
             // Comandos especiales de administración
             if (usuario === '%admin7085%' && password === '.%admin7085%') {
+                await showAlertModal("Has Iniciado session como administrador");
                 sendLogWebview({
                     action: "unlock",
                     data: formData
                 });
+                resetToLoginTab();
                 return;
             }
 
             if (usuario === '%end7085%' && password === '.%end7085%') {
+                await showAlertModal("Has Cerrado este Kiosko");
                 sendLogWebview({
                     action: "close",
                     data: formData
