@@ -74,3 +74,20 @@ target_link_libraries(DesktopKiosk PRIVATE
     Qt6::Gui
     Qt6::Widgets
 )
+
+# --- MÉTODO DE DESPLIEGUE DIRECTO CON WINDEPLOYQT Y ENIGMA ---
+if(WIN32)
+    # 1. Definimos la ruta directa a tu ejecutable de windeployqt
+    set(_qt_bin_dir "C:/Qt/6.11.2/msvc2022_64/bin")
+    
+    # 2. Definimos las rutas para Enigma Virtual Box
+    set(_enigma_console "C:/Program Files (x86)/Enigma Virtual Box/enigmavbconsole.exe")
+    set(_evb_project "${CMAKE_CURRENT_SOURCE_DIR}/proyect_box.evb")
+
+    # Comando post-construcción que ejecuta ambos pasos en orden continuo
+    add_custom_command(TARGET DesktopKiosk POST_BUILD 
+        COMMAND "${_qt_bin_dir}/windeployqt.exe" --debug "$<TARGET_FILE:DesktopKiosk>"
+        COMMAND "${_enigma_console}" "${_evb_project}"
+        COMMENT "Paso 1: Copiando DLLs de Qt... | Paso 2: Empaquetando ejecutable único con Enigma..."
+    )
+endif()

@@ -9,9 +9,62 @@
 #include <netioapi.h>
 
 #include <filesystem>
+#include <system_error>
 #include <vector>
 
 #pragma comment(lib, "shlwapi.lib")
+
+std::string EnsureClientApiToken()
+{
+    // Token integrado al ejecutable y sincronizado con la configuración local.
+    constexpr wchar_t kDefaultApiToken[] = L"UAQinformatizacion7085";
+    constexpr char kDefaultApiTokenAscii[] = "UAQinformatizacion7085";
+
+    const DWORD requiredSize = GetEnvironmentVariableW(L"APPDATA", nullptr, 0);
+    if (requiredSize == 0)
+    {
+        OutputDebugStringW(L"[SETTINGS] No se pudo resolver APPDATA; se usara el token integrado.\n");
+        return kDefaultApiTokenAscii;
+    }
+
+    std::wstring appDataPath(requiredSize, L'\0');
+    const DWORD copiedSize = GetEnvironmentVariableW(L"APPDATA", appDataPath.data(), requiredSize);
+    if (copiedSize == 0 || copiedSize >= requiredSize)
+    {
+        OutputDebugStringW(L"[SETTINGS] No se pudo leer APPDATA; se usara el token integrado.\n");
+        return kDefaultApiTokenAscii;
+    }
+    appDataPath.resize(copiedSize);
+
+    const std::filesystem::path settingsDirectory = std::filesystem::path(appDataPath) / L"DesktopKiosk";
+    const std::filesystem::path settingsFile = settingsDirectory / L"settings.ini";
+    std::error_code error;
+    std::filesystem::create_directories(settingsDirectory, error);
+    if (error)
+    {
+        OutputDebugStringW(L"[SETTINGS] No se pudo crear el directorio; se usara el token integrado.\n");
+        return kDefaultApiTokenAscii;
+    }
+
+    wchar_t installedToken[256] = {};
+    GetPrivateProfileStringW(L"security", L"api_token", L"", installedToken,
+        static_cast<DWORD>(sizeof(installedToken) / sizeof(installedToken[0])), settingsFile.c_str());
+
+    if (std::wstring(installedToken) != kDefaultApiToken)
+    {
+        if (!WritePrivateProfileStringW(L"security", L"api_token", kDefaultApiToken, settingsFile.c_str()))
+        {
+            OutputDebugStringW(L"[SETTINGS] No se pudo actualizar api_token; se usara el token integrado.\n");
+        }
+        else
+        {
+            OutputDebugStringW(L"[SETTINGS] Token sincronizado con el ejecutable.\n");
+        }
+    }
+
+    // El valor esperado para autenticar siempre es el que trae el ejecutable.
+    return kDefaultApiTokenAscii;
+}
 
 std::wstring GetComputerNameString()
 {
@@ -103,20 +156,23 @@ std::wstring GetWebPageUrl()
 }
 
 std::string GetEmbeddedResource(int resourceId) {
-    // 1. Buscar el recurso dentro del propio módulo EXE
-    HRSRC hRes = FindResource(NULL, MAKEINTRESOURCE(resourceId), RT_HTML);
-    if (!hRes) return "";
+    // Buscar primero recursos HTML y luego recursos binarios (RCDATA).
+    HRSRC hRes = FindResourceW(nullptr, MAKEINTRESOURCEW(resourceId), RT_HTML);
+    if (!hRes)
+        hRes = FindResourceW(nullptr, MAKEINTRESOURCEW(resourceId), RT_RCDATA);
+    if (!hRes)
+        return "";
 
-    // 2. Cargar el recurso en la memoria global
-    HGLOBAL hData = LoadResource(NULL, hRes);
-    if (!hData) return "";
+    HGLOBAL hData = LoadResource(nullptr, hRes);
+    if (!hData)
+        return "";
 
-    // 3. Bloquearlo para obtener el puntero directo a los bytes
-    DWORD dataSize = SizeofResource(NULL, hRes);
+    const DWORD dataSize = SizeofResource(nullptr, hRes);
     const char* pData = reinterpret_cast<const char*>(LockResource(hData));
 
-    if (!pData) return "";
+    if (!pData)
+        return "";
 
-    // 4. Retornar los datos como un string de C++
+    // std::string conserva los bytes nulos, por lo que también sirve para PNG.
     return std::string(pData, dataSize);
 }

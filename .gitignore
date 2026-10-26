@@ -79,4 +79,7 @@ $RECYCLE.BIN/
 # ==========================================
 *.bat
 __docs__/
+__sandbox__/
+__releases__/
 *.tmp
+*.evb

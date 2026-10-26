@@ -4,3 +4,9 @@
 IDR_INDEX_HTML   HTML           "../web/index.html"
 IDR_STYLE_CSS    HTML           "../web/style.css"
 IDR_APP_JS       HTML           "../web/app.js"
+
+IDR_FONDO1_PNG   RCDATA         "../web/imgs/fondo1.png"
+IDR_FONDO2_PNG   RCDATA         "../web/imgs/fondo2.png"
+IDR_LOGO_1_PNG   RCDATA         "../web/imgs/logo_1.png"
+IDR_LOGO_2_PNG   RCDATA         "../web/imgs/logo_2.png"
+IDR_MOSAICO_PNG  RCDATA         "../web/imgs/mosaico.png"

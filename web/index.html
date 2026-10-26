@@ -2,29 +2,153 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta
-        http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self'"
-    >
     <link rel="stylesheet" href="style.css">
-    <title>Desktop Blocker</title>
+    <title>DesktopKiosk</title>
 </head>
 
 <body>
 
     <div class="topbar">
-        <button id="lock">Bloquear</button>
         <button id="close">×</button>
     </div>
 
     <main>
-        <h1>Escritorio bloqueado</h1>
+        <!-- Logos -->
+        <div class="logo-container">
+            <img src="imgs/logo_1.png" alt="Logo 1" class="logo-img1">
+            <div class="logo-divider"></div>
+            <img src="imgs/logo_2.png" alt="Logo 2" class="logo-img2">
+        </div>
 
-        <button id="unlock" class="unlock">
-            Desbloquear
-        </button>
+        <!-- Contenedor de Pestañas -->
+        <div class="tabs-container">
+            <button class="tab-btn active" onclick="switchTab(event, 'login-panel')">Inicio de sesión</button>
+            <button class="tab-btn" onclick="switchTab(event, 'internos-panel')">Registro de alumnos</button>
+            <button class="tab-btn" onclick="switchTab(event, 'externos-panel')">Registro de externos</button>
+        </div>
+
+        <!-- Panel 1: Inicio de sesión -->
+        <div id="login-panel" class="tab-panel active">
+            <h1>Inicio de sesión</h1>
+            <div class="form-group">
+                <div class="input-wrapper">
+                    <input type="text" id="usuario" placeholder="Nombres/Expediente">
+                    <span class="input-tooltip">Ej: 123456 o Maria Jose</span>
+                </div>
+            </div>
+
+        <div class="form-group">
+            <div class="input-wrapper" style="position: relative;"> <!-- Asegúrate de que el contenedor tenga position: relative -->
+                <input type="password" id="contrasena" name="contrasena" placeholder="Contraseña" class="password-input">
+                <div class="input-tooltip">La contraseña es un punto seguido de tu nombre/expediente (ej. .123456 o .Maria Jose)</div>
+                <button type="button" id="toggle-password" class="password-toggle-btn" aria-label="Mostrar contraseña">
+                    <!-- Icono Ojo Abierto (Mostrar) -->
+                    <svg xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-eye">
+                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" />
+                        <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    <!-- Icono Ojo Oculto (Ocultar) -->
+                    <svg xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-eye-off">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-10-7-10-7a19.5 19.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 7 10 7a19.5 19.5 0 0 1-2.73 3.77" />
+                        <path d="M14.12 14.12a3 3 0 0 1-4.24-4.24" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+            <button class="unlock">Iniciar sesión</button>
+        </div>
+
+        <!-- Panel 2: Registro de internos -->
+        <div id="internos-panel" class="tab-panel">
+            <div class="form-group">
+                <input type="text" id="nombres" placeholder="Nombres">
+                <span class="input-tooltip">Ej: Nombre Ejemplo</span>
+            </div>
+            <div class="form-group">
+                <input type="text" id="apellidos" placeholder="Apellidos (Paterno y Materno)">
+                <span class="input-tooltip">Ej: Apellidos Ejemplo</span>
+            </div>
+            <div class="form-group">
+                <select id="facultad">
+                    <option value="" disabled selected>Facultad perteneciente</option>
+                </select>
+                <span class="input-tooltip">Ej: Facultad de Artes</span>
+            </div>
+            <div class="form-group">
+                <input type="text" id="expediente" placeholder="Expediente">
+                <span class="input-tooltip">Ej: 123456</span>
+            </div>
+            <button class="unlock">Registrarse</button>
+        </div>
+
+        <!-- Panel 3: Registro de externos -->
+        <div id="externos-panel" class="tab-panel">
+
+            <div class="form-group">
+                <input type="text" id="nombres" placeholder="Nombres">
+                <span class="input-tooltip">Ej: María Jose</span>
+            </div>
+
+            <div class="form-group">
+                <input type="text" id="apellidos" placeholder="Apellidos (Paterno y Materno)">
+                <span class="input-tooltip">Ej: López Pérez</span>
+            </div>
+
+            <div class="form-group">
+                <input type="email" id="email" placeholder="Correo Electronico">
+                <span class="input-tooltip">Ej: ejemplo@email.com</span>
+            </div>
+
+            <div class="form-group">
+                <select id="tipo-usuario" onchange="toggleUniversidad(this)">
+                    <option value="" disabled selected>Tipo de usuario</option>
+                    <option value="estudiante">Estudiante Externo</option>
+                    <option value="trabajador">Trabajador Interno</option>
+                    <option value="publico">Público en general</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="uni-group" style="display: none;">
+                <div class="input-wrapper">
+                    <select id="universidad-ext">
+                        <option value="" disabled selected>Institución de procedencia</option>
+                    </select>
+                    <span class="input-tooltip">Ej: Tecnológico de Monterrey</span>
+                </div>
+            </div>
+
+            <button class="unlock">Registrarse</button>
+        </div>
+
     </main>
 
+    <footer class="bottombar">
+        Coordinación General de Servicios de Informatización © 2027
+    </footer>
+
     <script src="app.js"></script>
+
+    <div id="confirm-modal" class="modal-overlay">
+        <div class="modal-content">
+            <p id="confirm-message">¿Estás seguro?</p>
+            <div class="modal-buttons">
+                <button id="confirm-cancel" class="modal-btn cancel">Cancelar</button>
+                <button id="confirm-ok" class="modal-btn accept">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Alerta Personalizado -->
+    <div id="confirmAlertModal" class="modal-overlay">
+        <div class="modal-content">
+            <p id="custom-modal-message"></p>
+            <div class="modal-buttons" style="justify-content: center;">
+                <button type="button" id="custom-modal-btn" class="modal-btn accept">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
