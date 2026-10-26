@@ -442,7 +442,7 @@ void ProcessCentralApiRequest(
         requestBody = QJsonDocument(payload).toJson(QJsonDocument::Compact).toStdString();
 
     const HttpResponse apiResponse = SendHttpRequest(
-        ip, method.toStdString(), path, requestBody, deadline
+        ip, method.toStdString(), path.toStdString(), requestBody, deadline
     );
     WSACleanup();
 

@@ -77,12 +77,9 @@ target_link_libraries(DesktopKiosk PRIVATE
 
 if(WIN32)
     set(_qt_bin_dir "C:/Qt/6.11.2/msvc2022_64/bin")
-    set(_enigma_console "C:/Program Files (x86)/Enigma Virtual Box/enigmavbconsole.exe")
-    set(_evb_project "${CMAKE_CURRENT_SOURCE_DIR}/proyect_box.evb")
 
     add_custom_command(TARGET DesktopKiosk POST_BUILD 
         COMMAND "${_qt_bin_dir}/windeployqt.exe" $<$<CONFIG:Debug>:--debug> "$<TARGET_FILE:DesktopKiosk>"
-        COMMAND $<$<CONFIG:Release>:"${_enigma_console}"> $<$<CONFIG:Release>:"${_evb_project}">
-        COMMENT "Desplegando dependencias de Qt... (Empaquetado con Enigma activo solo en Release)"
+        COMMENT "Desplegando dependencias de Qt con windeployqt..."
     )
 endif()
