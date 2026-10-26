@@ -593,6 +593,25 @@ void DispatchServerIpReceived()
     g_webview->PostWebMessageAsJson(message.c_str());
 }
 
+void DispatchIdleWarning()
+{
+    if (!g_webview)
+        return;
+
+    const std::wstring message =
+        L"{\"type\":\"idle-warning\",\"message\":\"El kiosco se bloqueará en 2 minutos por inactividad. Mueva el mouse o pulse una tecla para cancelar el bloqueo.\"}";
+    g_webview->PostWebMessageAsJson(message.c_str());
+}
+
+void DispatchIdleWarningCleared()
+{
+    if (!g_webview)
+        return;
+
+    const std::wstring message = L"{\"type\":\"idle-warning-cleared\"}";
+    g_webview->PostWebMessageAsJson(message.c_str());
+}
+
 void InitializeWebView2(HWND hwnd)
 {
     g_mainHwnd = hwnd;
@@ -641,6 +660,15 @@ void InitializeWebView2(HWND hwnd)
                             HRESULT hr = controller->get_CoreWebView2(&g_webview);
                             if (FAILED(hr))
                                 return hr;
+
+                            ComPtr<ICoreWebView2Settings> settings;
+                            if (SUCCEEDED(g_webview->get_Settings(&settings)) && settings)
+                            {
+                                // La aplicación funciona como kiosco: no exponer DevTools
+                                // ni el menú contextual predeterminado de WebView2.
+                                settings->put_AreDevToolsEnabled(FALSE);
+                                settings->put_AreDefaultContextMenusEnabled(FALSE);
+                            }
 
                             ResizeWebView();
 
