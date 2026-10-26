@@ -474,6 +474,8 @@ public:
                 "{\"status\":\"accepted\",\"action\":\"receive\",\"server_control_ip\":\""
                 + serverControlIp + "\"}";
             SendResponse(client, BuildResponse(202, "Accepted", responseBody));
+            if (handler)
+                handler("server_ip_received");
             closesocket(client);
             return;
         }
