@@ -106,10 +106,28 @@ unlock_buttons.forEach(boton => {
         else if (panelId === 'internos-panel') actionType = "registro_alumno";
         else if (panelId === 'externos-panel') actionType = "registro_externo";
 
-        sendLogWebview({
-            action: actionType,
-            data: formData
-        });
+        const serverResponse = await sendCentralRequest(actionType, formData);
+        if (!serverResponse) {
+            return;
+        }
+
+        if (actionType === "unlock_login") {
+            if (serverResponse.message) {
+                await showAlertModal(serverResponse.message);
+            }
+
+            sendLogWebview({
+                action: "unlock",
+                data: formData
+            });
+            resetToLoginTab();
+            return;
+        }
+
+        await showAlertModal(
+            serverResponse.message || "Registro completado correctamente."
+        );
+        resetToLoginTab();
     });
 });
 
@@ -286,6 +304,94 @@ function showConfirmModal(message) {
         btnOk.addEventListener('click', handleOk, { once: true });
         btnCancel.addEventListener('click', handleCancel, { once: true });
     });
+}
+
+// Envía el inicio de sesión o registro al servidor central con un límite de 20 segundos.
+const CENTRAL_REQUEST_TIMEOUT_MS = 20000;
+const LOCAL_API_TOKEN = "UAQinformatizacion7085";
+
+function showLoadingModal(message = "Comunicando con el servidor central...") {
+    const modal = document.getElementById('loadingModal');
+    const messageElement = document.getElementById('loading-message');
+
+    if (messageElement) {
+        messageElement.textContent = message;
+    }
+
+    if (modal) {
+        modal.setAttribute('aria-hidden', 'false');
+        modal.classList.add('active');
+    }
+}
+
+function hideLoadingModal() {
+    const modal = document.getElementById('loadingModal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+}
+
+async function sendCentralRequest(action, data) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+        () => controller.abort(),
+        CENTRAL_REQUEST_TIMEOUT_MS
+    );
+
+    showLoadingModal();
+
+    try {
+        const response = await fetch('/api/kiosk/central-request', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + LOCAL_API_TOKEN,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ action, data }),
+            signal: controller.signal
+        });
+
+        const responseData = await response.json().catch(() => ({}));
+
+        if (responseData.error === 'central_server_unknown') {
+            await showAlertModal(
+                responseData.message
+                || 'Este cliente no conoce el servidor central, contacte con el administrador de este equipo'
+            );
+            return null;
+        }
+
+        if (
+            responseData.error === 'central_server_unavailable'
+            || response.status === 503
+            || response.status === 502
+        ) {
+            await showAlertModal(
+                responseData.message
+                || 'No se encontro el servidor central, contacte con el administrador de este equipo'
+            );
+            return null;
+        }
+
+        if (!response.ok || responseData.success === false) {
+            await showAlertModal(
+                responseData.message
+                || 'El servidor central no pudo completar la solicitud.'
+            );
+            return null;
+        }
+
+        return responseData;
+    } catch (error) {
+        const unavailableMessage =
+            'No se encontro el servidor central, contacte con el administrador de este equipo';
+        await showAlertModal(unavailableMessage);
+        return null;
+    } finally {
+        clearTimeout(timeoutId);
+        hideLoadingModal();
+    }
 }
 
 // Función para mostrar el modal personalizado de alerta
