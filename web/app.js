@@ -308,8 +308,7 @@ function showConfirmModal(message) {
     });
 }
 
-// Solicitudes REST nativas: WebView2 envía la petición a C++ y recibe la respuesta
-// por el mismo canal postMessage, sin añadir rutas HTTP locales para el login/registro.
+// WebView2 entrega la petición a C++; C++ devuelve el resultado por el mismo canal.
 const CENTRAL_REQUEST_TIMEOUT_MS = 20000;
 const pendingCentralRequests = new Map();
 let centralRequestSequence = 0;
@@ -363,10 +362,16 @@ function hideLoadingModal() {
     }
 }
 
-async function sendCentralRequest(action, data) {
-    const path = CENTRAL_API_PATHS[action];
-    if (!path) {
-        await showAlertModal("El tipo de solicitud no está soportado.");
+// Mecanismo reutilizable para GET/POST a cualquier ruta /api/v1/ del servidor central.
+async function sendCentralApiRequest(method, path, payload = {}) {
+    const normalizedMethod = String(method || "GET").toUpperCase();
+    if (
+        !["GET", "POST"].includes(normalizedMethod)
+        || typeof path !== "string"
+        || !path.startsWith("/api/v1/")
+        || path.includes("..")
+    ) {
+        await showAlertModal("La solicitud al servidor central no es válida.");
         return null;
     }
 
@@ -402,12 +407,9 @@ async function sendCentralRequest(action, data) {
                 window.chrome.webview.postMessage({
                     action: "central_api_request",
                     requestId,
-                    method: "POST",
+                    method: normalizedMethod,
                     path,
-                    payload: {
-                        action,
-                        data
-                    }
+                    payload
                 });
             } catch (error) {
                 clearTimeout(timeoutId);
@@ -440,7 +442,6 @@ async function sendCentralRequest(action, data) {
         typeof response.status !== "number"
         || response.status < 200
         || response.status >= 300
-        || apiResponse.unlocked !== true
     ) {
         await showAlertModal(
             apiResponse.message || "El servidor central rechazó la solicitud."
@@ -448,7 +449,33 @@ async function sendCentralRequest(action, data) {
         return null;
     }
 
-    return apiResponse;
+    return {
+        status: response.status,
+        data: apiResponse
+    };
+}
+
+// Traduce las acciones del kiosco a los endpoints existentes en api_server.py.
+async function sendCentralRequest(action, data) {
+    const path = CENTRAL_API_PATHS[action];
+    if (!path) {
+        await showAlertModal("El tipo de solicitud no está soportado.");
+        return null;
+    }
+
+    const result = await sendCentralApiRequest("POST", path, { action, data });
+    if (!result) {
+        return null;
+    }
+
+    if (result.data.unlocked !== true) {
+        await showAlertModal(
+            result.data.message || "El servidor central rechazó la solicitud."
+        );
+        return null;
+    }
+
+    return result.data;
 }
 
 // Función para mostrar el modal personalizado de alerta
