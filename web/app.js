@@ -363,7 +363,7 @@ function hideLoadingModal() {
 }
 
 // Mecanismo reutilizable para GET/POST a cualquier ruta /api/v1/ del servidor central.
-async async function sendCentralApiRequest(method, path, payload = {}) {
+async function sendCentralApiRequest(method, path, payload = {}) {
     const normalizedMethod = String(method || "GET").toUpperCase();
     if (
         !["GET", "POST"].includes(normalizedMethod)
