@@ -126,10 +126,13 @@ unlock_buttons.forEach(boton => {
             return;
         }
 
-        // El registro exitoso no desbloquea ni reinicia el index.
-        await showAlertModal(
-            serverResponse.message || "Registro completado correctamente."
-        );
+        // El servidor central confirma que el registro se guardó correctamente.
+        // Desbloquear el kiosco de inmediato, sin exigir un segundo inicio de sesión.
+        resetToLoginTab();
+        sendLogWebview({
+            action: "unlock",
+            data: formData
+        });
     });
 });
 
