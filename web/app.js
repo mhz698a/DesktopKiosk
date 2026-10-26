@@ -352,27 +352,33 @@ async function sendCentralRequest(action, data) {
             signal: controller.signal
         });
 
-        const responseData = await response.json().catch(() => ({}));
+        const responseData = await response.json().catch(() => null);
 
-        if (responseData.error === 'central_server_unknown') {
+        if (responseData?.error === 'central_server_unknown') {
             hideLoadingModal();
             await showAlertModal(
-                responseData.message
+                responseData?.message
                 || 'Este cliente no conoce el servidor central, contacte con el administrador de este equipo'
             );
             return null;
         }
 
         if (
-            responseData.error === 'central_server_unavailable'
+            responseData?.error === 'central_server_unavailable'
             || response.status === 503
             || response.status === 502
         ) {
             hideLoadingModal();
             await showAlertModal(
-                responseData.message
+                responseData?.message
                 || 'No se encontro el servidor central, contacte con el administrador de este equipo'
             );
+            return null;
+        }
+
+        if (!responseData || typeof responseData !== 'object') {
+            hideLoadingModal();
+            await showAlertModal('El servidor central devolvió una respuesta inválida.');
             return null;
         }
 
