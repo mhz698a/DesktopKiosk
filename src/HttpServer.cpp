@@ -474,6 +474,7 @@ public:
                 "{\"status\":\"accepted\",\"action\":\"receive\",\"server_control_ip\":\""
                 + serverControlIp + "\"}";
             SendResponse(client, BuildResponse(202, "Accepted", responseBody));
+            // Notificar cada recepción guardada, incluso si la IP es idéntica a la anterior.
             if (handler)
                 handler("server_ip_received");
             closesocket(client);
