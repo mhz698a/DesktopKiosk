@@ -35,6 +35,9 @@ constexpr size_t kMaxCentralResponseBytes = 64 * 1024;
 HWND g_mainHwnd = nullptr;
 ComPtr<ICoreWebView2Controller> g_controller = nullptr;
 ComPtr<ICoreWebView2> g_webview = nullptr;
+bool g_pageReady = false;
+unsigned int g_pendingServerIpReceived = 0;
+int g_pendingIdleWarningState = 0; // 0 = ninguno, 1 = mostrar, 2 = ocultar
 
 struct HttpResponse
 {
@@ -585,8 +588,14 @@ void DispatchCentralApiResponse(std::wstring* responseJson)
 
 void DispatchServerIpReceived()
 {
-    if (!g_webview)
+    // La recepción puede ocurrir antes de que termine la navegación inicial.
+    // Se conserva cada evento para que también genere alerta en ese caso.
+    if (!g_webview || !g_pageReady)
+    {
+        if (g_pendingServerIpReceived < 1000)
+            ++g_pendingServerIpReceived;
         return;
+    }
 
     const std::wstring message =
         L"{\"type\":\"server-ip-received\",\"message\":\"La IP del servidor central se recibió y guardó correctamente.\"}";
@@ -595,9 +604,13 @@ void DispatchServerIpReceived()
 
 void DispatchIdleWarning()
 {
-    if (!g_webview)
+    if (!g_webview || !g_pageReady)
+    {
+        g_pendingIdleWarningState = 1;
         return;
+    }
 
+    g_pendingIdleWarningState = 0;
     const std::wstring message =
         L"{\"type\":\"idle-warning\",\"message\":\"El kiosco se bloqueará en 2 minutos por inactividad. Mueva el mouse o pulse una tecla para cancelar el bloqueo.\"}";
     g_webview->PostWebMessageAsJson(message.c_str());
@@ -605,9 +618,13 @@ void DispatchIdleWarning()
 
 void DispatchIdleWarningCleared()
 {
-    if (!g_webview)
+    if (!g_webview || !g_pageReady)
+    {
+        g_pendingIdleWarningState = 2;
         return;
+    }
 
+    g_pendingIdleWarningState = 0;
     const std::wstring message = L"{\"type\":\"idle-warning-cleared\"}";
     g_webview->PostWebMessageAsJson(message.c_str());
 }
@@ -671,6 +688,33 @@ void InitializeWebView2(HWND hwnd)
                             }
 
                             ResizeWebView();
+
+                            g_webview->add_NavigationCompleted(
+                                Callback<ICoreWebView2NavigationCompletedEventHandler>(
+                                    [](ICoreWebView2*, ICoreWebView2NavigationCompletedEventArgs* args) -> HRESULT
+                                    {
+                                        BOOL navigationSucceeded = FALSE;
+                                        if (SUCCEEDED(args->get_IsSuccess(&navigationSucceeded))
+                                            && navigationSucceeded)
+                                        {
+                                            g_pageReady = true;
+
+                                            while (g_pendingServerIpReceived > 0)
+                                            {
+                                                --g_pendingServerIpReceived;
+                                                DispatchServerIpReceived();
+                                            }
+
+                                            const int pendingIdleState = g_pendingIdleWarningState;
+                                            if (pendingIdleState == 1)
+                                                DispatchIdleWarning();
+                                            else if (pendingIdleState == 2)
+                                                DispatchIdleWarningCleared();
+                                        }
+                                        return S_OK;
+                                    })
+                                .Get(),
+                                nullptr);
 
                             g_webview->add_WebMessageReceived(
                                 Callback<ICoreWebView2WebMessageReceivedEventHandler>(
