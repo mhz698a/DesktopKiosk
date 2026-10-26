@@ -9,3 +9,5 @@
 #define IDR_LOGO_1_PNG   106
 #define IDR_LOGO_2_PNG   107
 #define IDR_MOSAICO_PNG  108
+
+#define IDI_ICON1        201 
