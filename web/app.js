@@ -108,26 +108,28 @@ unlock_buttons.forEach(boton => {
 
         const serverResponse = await sendCentralRequest(actionType, formData);
         if (!serverResponse) {
+            // Mantener la pestaña y todos los datos ingresados ante errores.
             return;
         }
 
         if (actionType === "unlock_login") {
-            if (serverResponse.message) {
-                await showAlertModal(serverResponse.message);
-            }
+            await showAlertModal(
+                serverResponse.message || "Sesión iniciada correctamente."
+            );
 
+            // Solo un login aceptado por la API central permite desbloquear el kiosco.
+            resetToLoginTab();
             sendLogWebview({
                 action: "unlock",
                 data: formData
             });
-            resetToLoginTab();
             return;
         }
 
+        // El registro exitoso no desbloquea ni reinicia el index.
         await showAlertModal(
             serverResponse.message || "Registro completado correctamente."
         );
-        resetToLoginTab();
     });
 });
 
@@ -306,102 +308,147 @@ function showConfirmModal(message) {
     });
 }
 
-// Envía el inicio de sesión o registro al servidor central con un límite de 20 segundos.
+// Solicitudes REST nativas: WebView2 envía la petición a C++ y recibe la respuesta
+// por el mismo canal postMessage, sin añadir rutas HTTP locales para el login/registro.
 const CENTRAL_REQUEST_TIMEOUT_MS = 20000;
-const LOCAL_API_TOKEN = "UAQinformatizacion7085";
+const pendingCentralRequests = new Map();
+let centralRequestSequence = 0;
+
+const CENTRAL_API_PATHS = {
+    unlock_login: "/api/v1/auth-client-pc/login",
+    registro_alumno: "/api/v1/users/register/alumno",
+    registro_externo: "/api/v1/users/register/externo"
+};
+
+if (window.chrome?.webview?.addEventListener) {
+    window.chrome.webview.addEventListener("message", (event) => {
+        const response = event.data;
+        if (
+            !response
+            || response.type !== "central-api-response"
+            || !response.requestId
+        ) {
+            return;
+        }
+
+        const pending = pendingCentralRequests.get(response.requestId);
+        if (!pending) {
+            return;
+        }
+
+        pendingCentralRequests.delete(response.requestId);
+        pending.complete(response);
+    });
+}
 
 function showLoadingModal(message = "Comunicando con el servidor central...") {
-    const modal = document.getElementById('loadingModal');
-    const messageElement = document.getElementById('loading-message');
+    const modal = document.getElementById("loadingModal");
+    const messageElement = document.getElementById("loading-message");
 
     if (messageElement) {
         messageElement.textContent = message;
     }
 
     if (modal) {
-        modal.setAttribute('aria-hidden', 'false');
-        modal.classList.add('active');
+        modal.setAttribute("aria-hidden", "false");
+        modal.classList.add("active");
     }
 }
 
 function hideLoadingModal() {
-    const modal = document.getElementById('loadingModal');
+    const modal = document.getElementById("loadingModal");
     if (modal) {
-        modal.classList.remove('active');
-        modal.setAttribute('aria-hidden', 'true');
+        modal.classList.remove("active");
+        modal.setAttribute("aria-hidden", "true");
     }
 }
 
 async function sendCentralRequest(action, data) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(
-        () => controller.abort(),
-        CENTRAL_REQUEST_TIMEOUT_MS
-    );
+    const path = CENTRAL_API_PATHS[action];
+    if (!path) {
+        await showAlertModal("El tipo de solicitud no está soportado.");
+        return null;
+    }
 
+    if (!window.chrome?.webview?.postMessage) {
+        await showAlertModal(
+            "No se encontro el servidor central, contacte con el administrador de este equipo"
+        );
+        return null;
+    }
+
+    const requestId = String(Date.now()) + "-" + String(++centralRequestSequence);
     showLoadingModal();
 
+    let response;
     try {
-        const response = await fetch('/api/kiosk/central-request', {
-            method: 'POST',
-            headers: {
-                'Authorization': 'Bearer ' + LOCAL_API_TOKEN,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ action, data }),
-            signal: controller.signal
+        response = await new Promise((resolve) => {
+            const timeoutId = setTimeout(() => {
+                pendingCentralRequests.delete(requestId);
+                resolve({
+                    transportError: "central_server_unavailable",
+                    message: "No se encontro el servidor central, contacte con el administrador de este equipo"
+                });
+            }, CENTRAL_REQUEST_TIMEOUT_MS);
+
+            pendingCentralRequests.set(requestId, {
+                complete: (result) => {
+                    clearTimeout(timeoutId);
+                    resolve(result);
+                }
+            });
+
+            try {
+                window.chrome.webview.postMessage({
+                    action: "central_api_request",
+                    requestId,
+                    method: "POST",
+                    path,
+                    payload: {
+                        action,
+                        data
+                    }
+                });
+            } catch (error) {
+                clearTimeout(timeoutId);
+                pendingCentralRequests.delete(requestId);
+                resolve({
+                    transportError: "central_server_unavailable",
+                    message: "No se encontro el servidor central, contacte con el administrador de este equipo"
+                });
+            }
         });
-
-        const responseData = await response.json().catch(() => null);
-
-        if (responseData?.error === 'central_server_unknown') {
-            hideLoadingModal();
-            await showAlertModal(
-                responseData?.message
-                || 'Este cliente no conoce el servidor central, contacte con el administrador de este equipo'
-            );
-            return null;
-        }
-
-        if (
-            responseData?.error === 'central_server_unavailable'
-            || response.status === 503
-            || response.status === 502
-        ) {
-            hideLoadingModal();
-            await showAlertModal(
-                responseData?.message
-                || 'No se encontro el servidor central, contacte con el administrador de este equipo'
-            );
-            return null;
-        }
-
-        if (!responseData || typeof responseData !== 'object') {
-            hideLoadingModal();
-            await showAlertModal('El servidor central devolvió una respuesta inválida.');
-            return null;
-        }
-
-        if (!response.ok || responseData.success === false) {
-            hideLoadingModal();
-            await showAlertModal(
-                responseData.message
-                || 'El servidor central no pudo completar la solicitud.'
-            );
-            return null;
-        }
-
-        return responseData;
-    } catch (error) {
-        const unavailableMessage =
-            'No se encontro el servidor central, contacte con el administrador de este equipo';
-        hideLoadingModal();
-        await showAlertModal(unavailableMessage);
-        return null;
     } finally {
-        clearTimeout(timeoutId);
         hideLoadingModal();
     }
+
+    if (response?.transportError) {
+        await showAlertModal(
+            response.message
+            || "No se encontro el servidor central, contacte con el administrador de este equipo"
+        );
+        return null;
+    }
+
+    const apiResponse = response?.data;
+    if (!apiResponse || typeof apiResponse !== "object") {
+        await showAlertModal("El servidor central devolvió una respuesta inválida.");
+        return null;
+    }
+
+    if (
+        typeof response.status !== "number"
+        || response.status < 200
+        || response.status >= 300
+        || apiResponse.unlocked !== true
+    ) {
+        await showAlertModal(
+            apiResponse.message || "El servidor central rechazó la solicitud."
+        );
+        return null;
+    }
+
+    return apiResponse;
 }
 
 // Función para mostrar el modal personalizado de alerta
