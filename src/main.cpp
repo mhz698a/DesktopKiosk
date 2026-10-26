@@ -138,7 +138,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
                 if (!GetLastInputInfo(&lastInput))
                     return 0;
 
-                const DWORD idleMilliseconds = GetTickCount() - lastInput.dwTime;
+                // GetLastInputInfo puede devolver una marca de tiempo no monotónica.
+                const LONG idleDifference = static_cast<LONG>(GetTickCount() - lastInput.dwTime);
+                const DWORD idleMilliseconds = idleDifference > 0
+                    ? static_cast<DWORD>(idleDifference)
+                    : 0;
 
                 if (idleMilliseconds >= kIdleLockMilliseconds)
                 {
