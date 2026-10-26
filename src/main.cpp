@@ -100,6 +100,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
             CloseKiosk();
             return 0;
 
+        case WM_KIOSK_CENTRAL_RESPONSE:
+            DispatchCentralApiResponse(reinterpret_cast<std::wstring*>(lParam));
+            return 0;
+
         case WM_DISPLAYCHANGE:
             ConfigureFullscreenWindow(hwnd, false);
             ResizeWebView();
