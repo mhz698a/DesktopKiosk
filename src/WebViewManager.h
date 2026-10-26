@@ -14,3 +14,7 @@ void DispatchCentralApiResponse(std::wstring* responseJson);
 
 // Muestra en el index la confirmación de recepción de la IP del servidor.
 void DispatchServerIpReceived();
+
+// Publica en la interfaz el aviso por inactividad y su cancelación.
+void DispatchIdleWarning();
+void DispatchIdleWarningCleared();
