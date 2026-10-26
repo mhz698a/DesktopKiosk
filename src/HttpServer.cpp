@@ -190,6 +190,7 @@ bool SaveServerControlIp(const std::string& ipAddress)
 
 void ConfigureSocketTimeouts(SOCKET client)
 {
+    const DWORD timeout = kSocketTimeoutMs;
 
     setsockopt(
         client,
