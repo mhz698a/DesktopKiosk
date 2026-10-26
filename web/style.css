@@ -241,6 +241,58 @@ button:hover {
     transform: translate(calc(100% + 8px), -50%);
 }
 
+/* El tooltip de contraseña se ajusta al viewport y permite varias líneas. */
+.password-tooltip {
+    top: calc(100% + 8px);
+    right: 0;
+    left: auto;
+    width: min(320px, calc(100vw - 32px));
+    max-height: min(30vh, 180px);
+    overflow-y: auto;
+    white-space: normal;
+    line-height: 1.45;
+    transform: none;
+}
+
+.input-wrapper:hover .password-tooltip {
+    transform: none;
+}
+
+.password-tooltip::after {
+    left: auto;
+    right: 18px;
+    top: -4px;
+    transform: none;
+    border-width: 0 4px 4px;
+    border-color: transparent transparent #1e293b;
+}
+
+/* Aviso no bloqueante que se oculta al detectar actividad del usuario. */
+.idle-warning {
+    display: none;
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    padding: 14px 20px;
+    border: 1px solid #f59e0b;
+    border-radius: 8px;
+    background: #fffbeb;
+    color: #78350f;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+    font-size: 15px;
+    line-height: 1.45;
+    text-align: center;
+    z-index: 2500;
+    pointer-events: none;
+}
+
+.idle-warning.active {
+    display: block;
+}
+
 /* Estilo para campos con error de validación */
 .form-group input.error,
 .form-group select.error {
