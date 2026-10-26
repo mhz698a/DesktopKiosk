@@ -82,3 +82,4 @@ __docs__/
 __sandbox__/
 __releases__/
 *.tmp
+*.evb
