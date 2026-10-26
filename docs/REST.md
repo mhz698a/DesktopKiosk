@@ -143,7 +143,7 @@ Las solicitudes POST usan el cuerpo JSON que espera la API central, con las clav
 }
 ~~~
 
-La API devuelve `unlocked` y `message`. DesktopKiosk solo desbloquea el kiosco cuando el login responde con un estado HTTP satisfactorio y `unlocked: true`. Las respuestas negativas muestran `message` con `showAlertModal()` y conservan la pestaña y los datos del formulario. Los registros muestran el mensaje de la API y no desbloquean el kiosco.
+La API devuelve `unlocked` y `message`. DesktopKiosk desbloquea el kiosco cuando el login es aceptado o cuando un registro nuevo termina correctamente (HTTP satisfactorio y `unlocked: true`). Tras registrar, la interfaz vuelve a la pestaña de inicio de sesión, limpia los campos y desbloquea sin exigir un segundo login. Las respuestas negativas muestran `message` con `showAlertModal()` y conservan la pestaña y los datos del formulario; los errores y registros duplicados no desbloquean el kiosco.
 
 Errores de conectividad:
 
