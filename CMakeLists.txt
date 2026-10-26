@@ -64,7 +64,6 @@ target_link_libraries(DesktopKiosk PRIVATE
     ole32
     oleaut32
     shlwapi
-    shell32
     iphlpapi
     advapi32
     ws2_32
