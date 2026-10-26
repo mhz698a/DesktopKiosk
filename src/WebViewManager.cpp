@@ -12,6 +12,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QString>
 
 #include <algorithm>
 #include <chrono>
@@ -417,20 +418,23 @@ void ProcessCentralApiRequest(
     const auto deadline = std::chrono::steady_clock::now()
         + std::chrono::milliseconds(kCentralRequestTimeoutMs);
 
-    const HttpResponse health = SendHttpRequest(
-        ip, "GET", "/api/v1/health", {},
-        deadline
-    );
-
-    if (!health.received || health.status != 200)
+    if (path != QStringLiteral("/api/v1/health"))
     {
-        WSACleanup();
-        PostResponseToWebView(requestId, BuildTransportError(
-            requestId,
-            QStringLiteral("central_server_unavailable"),
-            QStringLiteral("No se encontro el servidor central, contacte con el administrador de este equipo")
-        ));
-        return;
+        const HttpResponse health = SendHttpRequest(
+            ip, "GET", "/api/v1/health", {},
+            deadline
+        );
+
+        if (!health.received || health.status != 200)
+        {
+            WSACleanup();
+            PostResponseToWebView(requestId, BuildTransportError(
+                requestId,
+                QStringLiteral("central_server_unavailable"),
+                QStringLiteral("No se encontro el servidor central, contacte con el administrador de este equipo")
+            ));
+            return;
+        }
     }
 
     std::string requestBody;
