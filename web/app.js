@@ -325,6 +325,14 @@ const CENTRAL_API_PATHS = {
 if (window.chrome?.webview?.addEventListener) {
     window.chrome.webview.addEventListener("message", (event) => {
         const response = event.data;
+        if (response?.type === "server-ip-received") {
+            showAlertModal(
+                response.message
+                || "La IP del servidor central se recibió y guardó correctamente."
+            );
+            return;
+        }
+
         if (
             !response
             || response.type !== "central-api-response"
