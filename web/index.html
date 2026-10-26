@@ -40,7 +40,7 @@
         <div class="form-group">
             <div class="input-wrapper" style="position: relative;"> <!-- Asegúrate de que el contenedor tenga position: relative -->
                 <input type="password" id="contrasena" name="contrasena" placeholder="Contraseña" class="password-input">
-                <div class="input-tooltip">La contraseña es un punto seguido de tu nombre/expediente (ej. .123456 o .Maria Jose)</div>
+                <div class="input-tooltip password-tooltip">La contraseña es un punto seguido de tu nombre/expediente (ej. .123456 o .Maria Jose)</div>
                 <button type="button" id="toggle-password" class="password-toggle-btn" aria-label="Mostrar contraseña">
                     <!-- Icono Ojo Abierto (Mostrar) -->
                     <svg xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-eye">
@@ -127,6 +127,8 @@
     <footer class="bottombar">
         Coordinación General de Servicios de Informatización © 2027
     </footer>
+
+    <div id="idle-warning" class="idle-warning" role="status" aria-live="assertive" aria-hidden="true"></div>
 
     <script src="app.js"></script>
 
