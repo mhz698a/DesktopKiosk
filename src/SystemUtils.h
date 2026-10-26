@@ -9,3 +9,6 @@ std::wstring GetWebPageUrl();
 std::string GetEmbeddedResource(int resourceId);
 // Asegura y devuelve el token integrado en el ejecutable.
 std::string EnsureClientApiToken();
+
+// Instala o valida la regla entrante del puerto 7085 en perfiles privados y públicos.
+bool EnsureKioskFirewallRule();
