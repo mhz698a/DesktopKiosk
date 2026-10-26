@@ -19,6 +19,14 @@ void CloseKiosk();
 KioskState g_kioskState = KioskState::Locked;
 HWND g_hwnd = nullptr;
 
+namespace
+{
+constexpr UINT_PTR kKioskIdleTimerId = 7085;
+constexpr DWORD kIdleWarningMilliseconds = 180000;
+constexpr DWORD kIdleLockMilliseconds = 300000;
+bool g_idleWarningShown = false;
+}
+
 static HttpServer g_httpServer;
 
 void UnlockKiosk()
@@ -27,6 +35,8 @@ void UnlockKiosk()
         return;
 
     g_kioskState = KioskState::Unlocked;
+    g_idleWarningShown = false;
+    DispatchIdleWarningCleared();
     OutputDebugStringW(L"[KIOSK] Estado cambiado a UNLOCKED\n");
 
     ShowWindow(g_hwnd, SW_HIDE);
@@ -41,6 +51,8 @@ void LockKiosk()
         return;
 
     g_kioskState = KioskState::Locked;
+    g_idleWarningShown = false;
+    DispatchIdleWarningCleared();
     OutputDebugStringW(L"[KIOSK] Estado cambiado a LOCKED\n");
 
     DestroySessionWindow();
@@ -107,6 +119,49 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
         case WM_KIOSK_SERVER_IP_RECEIVED:
             DispatchServerIpReceived();
             return 0;
+
+        case WM_TIMER:
+            if (wParam == kKioskIdleTimerId)
+            {
+                if (g_kioskState != KioskState::Unlocked)
+                {
+                    if (g_idleWarningShown)
+                    {
+                        g_idleWarningShown = false;
+                        DispatchIdleWarningCleared();
+                    }
+                    return 0;
+                }
+
+                LASTINPUTINFO lastInput{};
+                lastInput.cbSize = sizeof(lastInput);
+                if (!GetLastInputInfo(&lastInput))
+                    return 0;
+
+                const DWORD idleMilliseconds = GetTickCount() - lastInput.dwTime;
+
+                if (idleMilliseconds >= kIdleLockMilliseconds)
+                {
+                    g_idleWarningShown = false;
+                    DispatchIdleWarningCleared();
+                    LockKiosk();
+                }
+                else if (idleMilliseconds >= kIdleWarningMilliseconds)
+                {
+                    if (!g_idleWarningShown)
+                    {
+                        g_idleWarningShown = true;
+                        DispatchIdleWarning();
+                    }
+                }
+                else if (g_idleWarningShown)
+                {
+                    g_idleWarningShown = false;
+                    DispatchIdleWarningCleared();
+                }
+                return 0;
+            }
+            break;
 
         case WM_DISPLAYCHANGE:
             ConfigureFullscreenWindow(hwnd, false);
@@ -186,6 +241,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
     UpdateWindow(g_hwnd);
 
     InitializeWebView2(g_hwnd);
+    SetTimer(g_hwnd, kKioskIdleTimerId, 1000, nullptr);
 
     if (!g_httpServer.Start(7085, [](const std::string& action)
     {
@@ -195,6 +251,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
             PostMessageW(g_hwnd, WM_KIOSK_LOCK, 0, 0);
         else if (action == "close")
             PostMessageW(g_hwnd, WM_KIOSK_CLOSE, 0, 0);
+        else if (action == "server_ip_received")
+            PostMessageW(g_hwnd, WM_KIOSK_SERVER_IP_RECEIVED, 0, 0);
     }))
     {
         OutputDebugStringW(L"[HTTP] Servidor REST no iniciado.\n");
