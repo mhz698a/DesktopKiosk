@@ -355,6 +355,7 @@ async function sendCentralRequest(action, data) {
         const responseData = await response.json().catch(() => ({}));
 
         if (responseData.error === 'central_server_unknown') {
+            hideLoadingModal();
             await showAlertModal(
                 responseData.message
                 || 'Este cliente no conoce el servidor central, contacte con el administrador de este equipo'
@@ -367,6 +368,7 @@ async function sendCentralRequest(action, data) {
             || response.status === 503
             || response.status === 502
         ) {
+            hideLoadingModal();
             await showAlertModal(
                 responseData.message
                 || 'No se encontro el servidor central, contacte con el administrador de este equipo'
@@ -375,6 +377,7 @@ async function sendCentralRequest(action, data) {
         }
 
         if (!response.ok || responseData.success === false) {
+            hideLoadingModal();
             await showAlertModal(
                 responseData.message
                 || 'El servidor central no pudo completar la solicitud.'
@@ -386,6 +389,7 @@ async function sendCentralRequest(action, data) {
     } catch (error) {
         const unavailableMessage =
             'No se encontro el servidor central, contacte con el administrador de este equipo';
+        hideLoadingModal();
         await showAlertModal(unavailableMessage);
         return null;
     } finally {
