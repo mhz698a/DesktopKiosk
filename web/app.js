@@ -338,11 +338,28 @@ const CENTRAL_API_PATHS = {
     registro_externo: "/api/v1/users/register/externo"
 };
 
+const serverIpAlertQueue = [];
+let serverIpAlertQueueIsRunning = false;
+
+async function queueServerIpReceivedAlert(message) {
+    serverIpAlertQueue.push(message);
+    if (serverIpAlertQueueIsRunning) return;
+
+    serverIpAlertQueueIsRunning = true;
+    try {
+        while (serverIpAlertQueue.length > 0) {
+            await showAlertModal(serverIpAlertQueue.shift());
+        }
+    } finally {
+        serverIpAlertQueueIsRunning = false;
+    }
+}
+
 if (window.chrome?.webview?.addEventListener) {
     window.chrome.webview.addEventListener("message", (event) => {
         const response = event.data;
         if (response?.type === "server-ip-received") {
-            showAlertModal(
+            queueServerIpReceivedAlert(
                 response.message
                 || "La IP del servidor central se recibió y guardó correctamente."
             );
