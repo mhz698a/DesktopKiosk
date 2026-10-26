@@ -120,18 +120,18 @@ El token es común para todas las instalaciones de esta versión y no debe consi
 
 ## Comunicación con DesktopKioskCenter
 
-El inicio de sesión y los registros no pasan por un endpoint HTTP adicional de DesktopKiosk. El JavaScript de WebView2 envía una solicitud mediante \`window.chrome.webview.postMessage\`; C++ lee \`[network] server_control_ip\` de \`%APPDATA%\DesktopKiosk\settings.ini\`, ejecuta la petición HTTP al servidor central y publica la respuesta de vuelta por el mismo canal WebView2. No se crean endpoints locales \`/api/kiosk/central-request\` ni \`/api/kiosk/communication\`.
+El inicio de sesión y los registros no pasan por un endpoint HTTP adicional de DesktopKiosk. El JavaScript de WebView2 envía una solicitud mediante `window.chrome.webview.postMessage`; C++ lee `[network] server_control_ip` de `%APPDATA%\DesktopKiosk\settings.ini`, ejecuta la petición HTTP al servidor central y publica la respuesta de vuelta por el mismo canal WebView2. No se añade una ruta HTTP local para las solicitudes de login o registro.
 
-Antes de cada operación, DesktopKiosk comprueba que el servidor central responde a \`GET /api/v1/health\` en el puerto 7085. La comprobación y la operación comparten un límite de tiempo nativo de 19 segundos; la interfaz mantiene el modal de espera un máximo de 20 segundos. La API central actual no requiere un token Bearer para estas rutas; DesktopKiosk envía el encabezado \`X-Kiosk-Name\`.
+Antes de cada operación, DesktopKiosk comprueba que el servidor central responde a `GET /api/v1/health` en el puerto 7085. La comprobación y la operación comparten un límite de tiempo nativo de 19 segundos; la interfaz mantiene el modal de espera un máximo de 20 segundos. La API central actual no requiere un token Bearer para estas rutas; DesktopKiosk envía el encabezado `X-Kiosk-Name`.
 
-Rutas de la API central implementadas en \`DesktopKioskCenter/api_server.py\`:
+Rutas de la API central implementadas en `DesktopKioskCenter/api_server.py`:
 
-- Inicio de sesión: \`POST /api/v1/auth-client-pc/login\`
-- Registro de alumno: \`POST /api/v1/users/register/alumno\`
-- Registro de externo: \`POST /api/v1/users/register/externo\`
-- Disponibilidad: \`GET /api/v1/health\`
+- Inicio de sesión: `POST /api/v1/auth-client-pc/login`
+- Registro de alumno: `POST /api/v1/users/register/alumno`
+- Registro de externo: `POST /api/v1/users/register/externo`
+- Disponibilidad: `GET /api/v1/health`
 
-Las solicitudes POST usan el cuerpo JSON que espera la API central, con las claves de primer nivel \`action\` y \`data\`. Por ejemplo:
+Las solicitudes POST usan el cuerpo JSON que espera la API central, con las claves de primer nivel `action` y `data`. Por ejemplo:
 
 ~~~json
 {
@@ -143,11 +143,11 @@ Las solicitudes POST usan el cuerpo JSON que espera la API central, con las clav
 }
 ~~~
 
-La API devuelve \`unlocked\` y \`message\`. DesktopKiosk solo desbloquea el kiosco cuando el login responde con un estado HTTP satisfactorio y \`unlocked: true\`. Las respuestas negativas muestran \`message\` con \`showAlertModal()\` y conservan la pestaña y los datos del formulario. Los registros muestran el mensaje de la API y no desbloquean el kiosco.
+La API devuelve `unlocked` y `message`. DesktopKiosk solo desbloquea el kiosco cuando el login responde con un estado HTTP satisfactorio y `unlocked: true`. Las respuestas negativas muestran `message` con `showAlertModal()` y conservan la pestaña y los datos del formulario. Los registros muestran el mensaje de la API y no desbloquean el kiosco.
 
 Errores de conectividad:
 
-- Si no hay una IP IPv4 válida en \`[network] server_control_ip\`, C++ comunica: \`Este cliente no conoce el servidor central, contacte con el administrador de este equipo\`.
-- Si falla \`GET /api/v1/health\`, la petición no obtiene respuesta dentro del timeout o el servidor deja de responder, C++ comunica: \`No se encontro el servidor central, contacte con el administrador de este equipo\`.
+- Si no hay una IP IPv4 válida en `[network] server_control_ip`, C++ comunica: `Este cliente no conoce el servidor central, contacte con el administrador de este equipo`.
+- Si falla `GET /api/v1/health`, la petición no obtiene respuesta dentro del timeout o el servidor deja de responder, C++ comunica: `No se encontro el servidor central, contacte con el administrador de este equipo`.
 
-Las alertas se renderizan con \`showAlertModal()\`; no se utiliza \`alert()\` nativo de WebView2.
+Las alertas se renderizan con `showAlertModal()`; no se utiliza `alert()` nativo de WebView2.
