@@ -369,7 +369,7 @@ QJsonObject BuildTransportError(
     return response;
 }
 
-void PostResponseToWebView(const QString& requestId, const QJsonObject& apiResponse)
+void PostResponseToWebView(const QJsonObject& apiResponse)
 {
     const QByteArray utf8 = QJsonDocument(apiResponse).toJson(QJsonDocument::Compact);
     const std::wstring responseText = QString::fromUtf8(utf8).toStdWString();
@@ -395,7 +395,7 @@ void ProcessCentralApiRequest(
     const std::wstring configuredIp = ReadServerControlIp();
     if (configuredIp.empty())
     {
-        PostResponseToWebView(requestId, BuildTransportError(
+        PostResponseToWebView(BuildTransportError(
             requestId,
             QStringLiteral("central_server_unknown"),
             QStringLiteral("Este cliente no conoce el servidor central, contacte con el administrador de este equipo")
@@ -406,7 +406,7 @@ void ProcessCentralApiRequest(
     WSADATA wsaData{};
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
     {
-        PostResponseToWebView(requestId, BuildTransportError(
+        PostResponseToWebView(BuildTransportError(
             requestId,
             QStringLiteral("central_server_unavailable"),
             QStringLiteral("No se encontro el servidor central, contacte con el administrador de este equipo")
@@ -428,7 +428,7 @@ void ProcessCentralApiRequest(
         if (!health.received || health.status != 200)
         {
             WSACleanup();
-            PostResponseToWebView(requestId, BuildTransportError(
+            PostResponseToWebView(BuildTransportError(
                 requestId,
                 QStringLiteral("central_server_unavailable"),
                 QStringLiteral("No se encontro el servidor central, contacte con el administrador de este equipo")
@@ -448,7 +448,7 @@ void ProcessCentralApiRequest(
 
     if (!apiResponse.received)
     {
-        PostResponseToWebView(requestId, BuildTransportError(
+        PostResponseToWebView(BuildTransportError(
             requestId,
             QStringLiteral("central_server_unavailable"),
             QStringLiteral("No se encontro el servidor central, contacte con el administrador de este equipo")
@@ -463,7 +463,7 @@ void ProcessCentralApiRequest(
     );
     if (parseError.error != QJsonParseError::NoError || !json.isObject())
     {
-        PostResponseToWebView(requestId, BuildTransportError(
+        PostResponseToWebView(BuildTransportError(
             requestId,
             QStringLiteral("invalid_server_response"),
             QStringLiteral("El servidor central devolvió una respuesta inválida.")
@@ -476,7 +476,7 @@ void ProcessCentralApiRequest(
     response.insert(QStringLiteral("requestId"), requestId);
     response.insert(QStringLiteral("status"), apiResponse.status);
     response.insert(QStringLiteral("data"), json.object());
-    PostResponseToWebView(requestId, response);
+    PostResponseToWebView(response);
 }
 }
 
@@ -561,7 +561,7 @@ static void HandleWebMessage(ICoreWebView2WebMessageReceivedEventArgs* args)
             QStringLiteral("invalid_request"),
             QStringLiteral("La solicitud al servidor central no es válida.")
         );
-        PostResponseToWebView(requestId, response);
+        PostResponseToWebView(response);
         return;
     }
 
