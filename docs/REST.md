@@ -32,9 +32,8 @@ Todos son `POST`:
 - `/api/kiosk/lock`
 - `/api/kiosk/close`
 - `/api/kiosk/receive`
-- `/api/kiosk/central-request` (reenvía las solicitudes de inicio de sesión y registro al servidor central)
 
-Las rutas de control y recepción devuelven `202 Accepted` al completarse. La ruta `central-request` reenvía el código HTTP y el cuerpo JSON que devuelve el servidor central.
+Las rutas de control y recepción devuelven `202 Accepted` al completarse.
 
 Ejemplo desde PowerShell:
 
@@ -119,27 +118,36 @@ api_token=UAQinformatizacion7085
 
 El token es común para todas las instalaciones de esta versión y no debe considerarse un secreto fuerte. Limita el puerto 7085 en el firewall de Windows a los equipos autorizados.
 
-## Comunicación de inicio de sesión y registro con el servidor central
+## Comunicación con DesktopKioskCenter
 
-El WebView envía las acciones unlock_login, registro_alumno y registro_externo al endpoint local POST http://127.0.0.1:7085/api/kiosk/central-request, usando el token Bearer del cliente y un JSON con action y data. El endpoint local lee server_control_ip dentro de la sección [network] de %APPDATA%\DesktopKiosk\settings.ini y reenvía la petición a:
+El inicio de sesión y los registros no pasan por un endpoint HTTP adicional de DesktopKiosk. El JavaScript de WebView2 envía una solicitud mediante \`window.chrome.webview.postMessage\`; C++ lee \`[network] server_control_ip\` de \`%APPDATA%\DesktopKiosk\settings.ini\`, ejecuta la petición HTTP al servidor central y publica la respuesta de vuelta por el mismo canal WebView2. No se crean endpoints locales \`/api/kiosk/central-request\` ni \`/api/kiosk/communication\`.
 
-POST http://<server_control_ip>:7085/api/kiosk/communication
+Antes de cada operación, DesktopKiosk comprueba que el servidor central responde a \`GET /api/v1/health\` en el puerto 7085. La comprobación y la operación comparten un límite de tiempo nativo de 19 segundos; la interfaz mantiene el modal de espera un máximo de 20 segundos. La API central actual no requiere un token Bearer para estas rutas; DesktopKiosk envía el encabezado \`X-Kiosk-Name\`.
 
-La petición reenviada conserva el cuerpo JSON y usa el token Bearer integrado en DesktopKiosk. El servicio central debe implementar esta ruta y responder con JSON. Una respuesta correcta puede tener, por ejemplo:
+Rutas de la API central implementadas en \`DesktopKioskCenter/api_server.py\`:
+
+- Inicio de sesión: \`POST /api/v1/auth-client-pc/login\`
+- Registro de alumno: \`POST /api/v1/users/register/alumno\`
+- Registro de externo: \`POST /api/v1/users/register/externo\`
+- Disponibilidad: \`GET /api/v1/health\`
+
+Las solicitudes POST usan el cuerpo JSON que espera la API central, con las claves de primer nivel \`action\` y \`data\`. Por ejemplo:
 
 ~~~json
 {
-  "success": true,
-  "message": "Solicitud completada."
+  "action": "unlock_login",
+  "data": {
+    "usuario": "123456",
+    "contrasena": ".123456"
+  }
 }
 ~~~
 
-Si success es false, el cliente muestra el campo message y no desbloquea el kiosco ni confirma el registro. Una respuesta positiva para unlock_login desbloquea el kiosco; una respuesta positiva de registro muestra el mensaje del servidor o una confirmación predeterminada.
+La API devuelve \`unlocked\` y \`message\`. DesktopKiosk solo desbloquea el kiosco cuando el login responde con un estado HTTP satisfactorio y \`unlocked: true\`. Las respuestas negativas muestran \`message\` con \`showAlertModal()\` y conservan la pestaña y los datos del formulario. Los registros muestran el mensaje de la API y no desbloquean el kiosco.
 
-El servicio de red nativo limita el intento de conexión y respuesta a 19 segundos; la interfaz aplica además un timeout total de 20 segundos y muestra un modal de espera mientras está pendiente la petición. No se utiliza alert() nativo de WebView2.
+Errores de conectividad:
 
-Errores de comunicación:
+- Si no hay una IP IPv4 válida en \`[network] server_control_ip\`, C++ comunica: \`Este cliente no conoce el servidor central, contacte con el administrador de este equipo\`.
+- Si falla \`GET /api/v1/health\`, la petición no obtiene respuesta dentro del timeout o el servidor deja de responder, C++ comunica: \`No se encontro el servidor central, contacte con el administrador de este equipo\`.
 
-- HTTP 409 Conflict, código central_server_unknown: no existe una IP de servidor central configurada. Mensaje: Este cliente no conoce el servidor central, contacte con el administrador de este equipo.
-- HTTP 503 Service Unavailable, código central_server_unavailable: no se pudo conectar con el servidor central o no respondió dentro del límite. Mensaje: No se encontro el servidor central, contacte con el administrador de este equipo.
-
+Las alertas se renderizan con \`showAlertModal()\`; no se utiliza \`alert()\` nativo de WebView2.
