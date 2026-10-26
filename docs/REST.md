@@ -34,9 +34,7 @@ Todos son `POST`:
 - `/api/kiosk/receive`
 - `/api/kiosk/central-request` (reenvía las solicitudes de inicio de sesión y registro al servidor central)
 
-Respuesta correcta:
-
-`202 Accepted`
+Las rutas de control y recepción devuelven `202 Accepted` al completarse. La ruta `central-request` reenvía el código HTTP y el cuerpo JSON que devuelve el servidor central.
 
 Ejemplo desde PowerShell:
 
