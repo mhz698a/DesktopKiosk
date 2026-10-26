@@ -104,6 +104,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
             DispatchCentralApiResponse(reinterpret_cast<std::wstring*>(lParam));
             return 0;
 
+        case WM_KIOSK_SERVER_IP_RECEIVED:
+            DispatchServerIpReceived();
+            return 0;
+
         case WM_DISPLAYCHANGE:
             ConfigureFullscreenWindow(hwnd, false);
             ResizeWebView();
