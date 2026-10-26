@@ -119,3 +119,28 @@ api_token=UAQinformatizacion7085
 ~~~
 
 El token es común para todas las instalaciones de esta versión y no debe considerarse un secreto fuerte. Limita el puerto 7085 en el firewall de Windows a los equipos autorizados.
+
+## Comunicación de inicio de sesión y registro con el servidor central
+
+El WebView envía las acciones unlock_login, registro_alumno y registro_externo al endpoint local POST http://127.0.0.1:7085/api/kiosk/central-request, usando el token Bearer del cliente y un JSON con action y data. El endpoint local lee server_control_ip dentro de la sección [network] de %APPDATA%\DesktopKiosk\settings.ini y reenvía la petición a:
+
+POST http://<server_control_ip>:7085/api/kiosk/communication
+
+La petición reenviada conserva el cuerpo JSON y usa el token Bearer integrado en DesktopKiosk. El servicio central debe implementar esta ruta y responder con JSON. Una respuesta correcta puede tener, por ejemplo:
+
+~~~json
+{
+  "success": true,
+  "message": "Solicitud completada."
+}
+~~~
+
+Si success es false, el cliente muestra el campo message y no desbloquea el kiosco ni confirma el registro. Una respuesta positiva para unlock_login desbloquea el kiosco; una respuesta positiva de registro muestra el mensaje del servidor o una confirmación predeterminada.
+
+El servicio de red nativo limita el intento de conexión y respuesta a 19 segundos; la interfaz aplica además un timeout total de 20 segundos y muestra un modal de espera mientras está pendiente la petición. No se utiliza alert() nativo de WebView2.
+
+Errores de comunicación:
+
+- HTTP 409 Conflict, código central_server_unknown: no existe una IP de servidor central configurada. Mensaje: Este cliente no conoce el servidor central, contacte con el administrador de este equipo.
+- HTTP 503 Service Unavailable, código central_server_unavailable: no se pudo conectar con el servidor central o no respondió dentro del límite. Mensaje: No se encontro el servidor central, contacte con el administrador de este equipo.
+
