@@ -583,6 +583,16 @@ void DispatchCentralApiResponse(std::wstring* responseJson)
     delete responseJson;
 }
 
+void DispatchServerIpReceived()
+{
+    if (!g_webview)
+        return;
+
+    const std::wstring message =
+        L"{\"type\":\"server-ip-received\",\"message\":\"La IP del servidor central se recibió y guardó correctamente.\"}";
+    g_webview->PostWebMessageAsJson(message.c_str());
+}
+
 void InitializeWebView2(HWND hwnd)
 {
     g_mainHwnd = hwnd;
