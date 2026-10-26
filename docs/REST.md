@@ -6,7 +6,7 @@ El cliente expone un servidor HTTP en el puerto **7085** para controlar el estad
 
 El token `UAQinformatizacion7085` viene integrado en el ejecutable. Al iniciar, DesktopKiosk crea `%APPDATA%\DesktopKiosk\settings.ini` si hace falta y guarda el token bajo `[security]` y `api_token`. Si encuentra una clave vacía o un token distinto al incluido en la versión ejecutable, lo reemplaza automáticamente. No se necesita configurar variables de entorno ni editar el archivo manualmente.
 
-Por defecto escucha en `0.0.0.0`, es decir, en todas las interfaces IPv4. Para limitarlo a una interfaz concreta, define `DESKTOPKIOSK_HTTP_BIND` con la dirección IPv4 correspondiente. El firewall de Windows debe restringir el puerto 7085 a las máquinas autorizadas.
+Por defecto escucha en `0.0.0.0`, es decir, en todas las interfaces IPv4. Para limitarlo a una interfaz concreta, define `DESKTOPKIOSK_HTTP_BIND` con la dirección IPv4 correspondiente. Antes de mostrar la ventana a pantalla completa, DesktopKiosk crea o valida la regla de firewall `DesktopKiosk API 7085` para TCP 7085 en perfiles privados y públicos. Si se requieren privilegios administrativos, Windows muestra el aviso UAC durante el arranque. La regla permite el puerto para este ejecutable, pero no limita por sí sola las IP remotas; en redes compartidas, restringe también los equipos de origen desde el Firewall de Windows.
 
 Cada petición POST requiere:
 
@@ -43,7 +43,7 @@ $headers = @{ Authorization = "Bearer UAQinformatizacion7085" }
 Invoke-WebRequest -Method POST -Uri "http://127.0.0.1:7085/api/kiosk/unlock" -Headers $headers
 ```
 
-Para control remoto, además de configurar `DESKTOPKIOSK_HTTP_BIND`, el firewall de Windows debe permitir el puerto 7085 únicamente desde las máquinas autorizadas.
+Para control remoto, configura `DESKTOPKIOSK_HTTP_BIND` si quieres limitar la interfaz y restringe las direcciones remotas permitidas en el Firewall de Windows cuando no deban conectarse todos los equipos de la red.
 
 ## WebView2
 
@@ -53,9 +53,12 @@ Los mensajes `postMessage` se validan contra:
 2. Un objeto JSON que contenga una acción conocida.
 3. Las acciones permitidas: `unlock`, `lock` y `close`.
 
-Las acciones se publican al hilo de UI mediante mensajes `WM_APP`; el código HTTP no modifica directamente el estado de la ventana.
+Las acciones se publican al hilo de UI mediante mensajes `WM_APP`; el código HTTP no modifica directamente el estado de la ventana. WebView2 deshabilita de forma nativa DevTools y sus menús contextuales predeterminados; la página también cancela el menú contextual y los atajos de teclado habituales para abrir herramientas de desarrollo.
 
-## Ventana de sesión
+## Bloqueo por inactividad
+
+Mientras el kiosco está desbloqueado, la aplicación consulta la última entrada de teclado o mouse de la sesión de Windows con `GetLastInputInfo`. A los **180 segundos** sin actividad muestra un aviso no bloqueante que indica que quedan dos minutos. Si la inactividad continúa hasta **300 segundos**, el kiosco se bloquea y vuelve a la pantalla de acceso. Cualquier nueva entrada de teclado o mouse reinicia el cómputo y oculta el aviso si ya se había mostrado.
+
 
 La clase `DesktopKioskSessionWindow` se registra una sola vez durante la inicialización de la aplicación. Esto permite crear y destruir la ventana de sesión repetidamente sin intentar registrar nuevamente la misma clase cada vez que se desbloquea el kiosco.
 
@@ -90,7 +93,7 @@ Si el directorio o el archivo no existen, se crean. El valor se guarda bajo la s
 server_control_ip=192.168.1.10
 ~~~
 
-Una respuesta 202 Accepted confirma que el valor se guardó. Un JSON o una IP inválidos producen 400 Bad Request; un fallo al escribir el archivo produce 500 Internal Server Error; un token incorrecto produce 401 Unauthorized.
+Cada recepción válida que se guarda correctamente genera un diálogo de confirmación en WebView2, incluso si la IP recibida es igual a la que ya estaba configurada. Una respuesta 202 Accepted confirma que el valor se guardó. Un JSON o una IP inválidos producen 400 Bad Request; un fallo al escribir el archivo produce 500 Internal Server Error; un token incorrecto produce 401 Unauthorized.
 
 Ejemplo desde PowerShell:
 
