@@ -6,7 +6,7 @@ El cliente expone un servidor HTTP en el puerto **7085** para controlar el estad
 
 El token `UAQinformatizacion7085` viene integrado en el ejecutable. Al iniciar, DesktopKiosk crea `%APPDATA%\DesktopKiosk\settings.ini` si hace falta y guarda el token bajo `[security]` y `api_token`. Si encuentra una clave vacía o un token distinto al incluido en la versión ejecutable, lo reemplaza automáticamente. No se necesita configurar variables de entorno ni editar el archivo manualmente.
 
-Por defecto escucha en `0.0.0.0`, es decir, en todas las interfaces IPv4. Para limitarlo a una interfaz concreta, define `DESKTOPKIOSK_HTTP_BIND` con la dirección IPv4 correspondiente. Antes de mostrar la ventana a pantalla completa, DesktopKiosk crea o valida la regla de firewall `DesktopKiosk API 7085` para TCP 7085 en perfiles privados y públicos. Si se requieren privilegios administrativos, Windows muestra el aviso UAC durante el arranque. La regla permite el puerto para este ejecutable, pero no limita por sí sola las IP remotas; en redes compartidas, restringe también los equipos de origen desde el Firewall de Windows.
+Por defecto escucha en `0.0.0.0`, es decir, en todas las interfaces IPv4. Para limitarlo a una interfaz concreta, define `DESKTOPKIOSK_HTTP_BIND` con la dirección IPv4 correspondiente. El cliente no crea ni modifica reglas del Firewall de Windows: esa configuración queda a cargo del instalador. El instalador debe establecer una regla de entrada para el ejecutable y TCP 7085 antes del primer inicio, habilitando solo los perfiles necesarios y restringiendo las direcciones remotas cuando corresponda.
 
 Cada petición POST requiere:
 
@@ -43,7 +43,7 @@ $headers = @{ Authorization = "Bearer UAQinformatizacion7085" }
 Invoke-WebRequest -Method POST -Uri "http://127.0.0.1:7085/api/kiosk/unlock" -Headers $headers
 ```
 
-Para control remoto, configura `DESKTOPKIOSK_HTTP_BIND` si quieres limitar la interfaz y restringe las direcciones remotas permitidas en el Firewall de Windows cuando no deban conectarse todos los equipos de la red.
+Para control remoto, configura `DESKTOPKIOSK_HTTP_BIND` si quieres limitar la interfaz. La regla de entrada correspondiente debe instalarse desde el instalador y limitar el acceso a los equipos autorizados.
 
 ## WebView2
 
@@ -119,7 +119,7 @@ El ejecutable usa el token integrado `UAQinformatizacion7085`. En cada inicio lo
 api_token=UAQinformatizacion7085
 ~~~
 
-El token es común para todas las instalaciones de esta versión y no debe considerarse un secreto fuerte. Limita el puerto 7085 en el firewall de Windows a los equipos autorizados.
+El token es común para todas las instalaciones de esta versión y no debe considerarse un secreto fuerte. El instalador debe limitar el puerto 7085 en el Firewall de Windows a los equipos autorizados.
 
 ## Comunicación con DesktopKioskCenter
 
