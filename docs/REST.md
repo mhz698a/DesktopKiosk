@@ -135,13 +135,15 @@ Rutas de la API central implementadas en `DesktopKioskCenter/api_server.py`:
 - Heartbeat/estado del kiosco: `POST /api/v1/health`
 
 Las solicitudes POST usan el cuerpo JSON que espera la API central, con las claves de primer nivel `action` y `data`. Por ejemplo:
+En inicio de sesión, `data.usuario` contiene el correo electrónico; los alumnos internos también pueden usar su expediente como alternativa. Los nombres no se usan para identificar cuentas. El formulario de registro de alumnos internos solicita email, y el centro valida que sea único entre todas las categorías de usuarios.
+
 
 ~~~json
 {
   "action": "unlock_login",
   "data": {
-    "usuario": "123456",
-    "contrasena": ".123456"
+    "usuario": "alumno@example.com",
+    "contrasena": ".alumno@example.com"
   }
 }
 ~~~
