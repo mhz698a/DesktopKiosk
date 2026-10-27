@@ -146,6 +146,19 @@
         </div>
     </div>
 
+    <!-- Menú de administración, disponible mediante las credenciales administrativas locales -->
+    <div id="admin-menu-modal" class="modal-overlay" aria-hidden="true">
+        <div class="modal-content admin-menu-content" role="dialog" aria-modal="true" aria-labelledby="admin-menu-title">
+            <button type="button" id="admin-menu-close" class="admin-modal-close" aria-label="Cerrar diálogo">×</button>
+            <h2 id="admin-menu-title">Menú del administrador</h2>
+            <p>Selecciona una acción para este kiosco.</p>
+            <div class="admin-menu-actions">
+                <button type="button" id="admin-menu-unlock" class="modal-btn accept">Desbloquear</button>
+                <button type="button" id="admin-menu-close-kiosk" class="modal-btn cancel">Cerrar Kiosko</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal de Alerta Personalizado -->
     <div id="confirmAlertModal" class="modal-overlay">
         <div class="modal-content">
