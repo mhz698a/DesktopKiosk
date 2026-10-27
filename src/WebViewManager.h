@@ -18,3 +18,6 @@ void DispatchServerIpReceived();
 // Publica en la interfaz el aviso por inactividad y su cancelación.
 void DispatchIdleWarning();
 void DispatchIdleWarningCleared();
+
+// Envía el estado actual del kiosco al endpoint heartbeat del servidor central.
+void SendKioskHeartbeat(int status, const std::wstring& timeString);
