@@ -156,3 +156,10 @@ Errores de conectividad:
 - Si la operación de login o registro no obtiene respuesta dentro del timeout o el servidor central deja de responder, C++ comunica: `No se encontro el servidor central, contacte con el administrador de este equipo`.
 
 Las alertas se renderizan con `showAlertModal()`; no se utiliza `alert()` nativo de WebView2.
+
+
+## Bloqueo de atajos del kiosco
+
+DesktopKiosk instala un hook de teclado de bajo nivel mientras se ejecuta. El hook solo suprime combinaciones cuando la ventana en primer plano pertenece al proceso de DesktopKiosk; en el resto de aplicaciones deja pasar los eventos. No requiere privilegios de administrador. Se bloquean la tecla Windows, Ctrl+Esc y Alt+Tab. Alt+F4 se intercepta aparte mediante el evento nativo `AcceleratorKeyPressed` del controlador WebView2 y se marca como manejado.
+
+Ctrl+Shift+Esc se deja pasar de forma explícita. Ctrl+Alt+Supr tampoco se intercepta: es una secuencia segura de Windows que una aplicación de usuario no puede bloquear mediante este hook. Si el hook no puede instalarse, DesktopKiosk no inicia la interfaz del kiosco.
