@@ -427,6 +427,51 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
     right: 0;
 }
 
+/* Menú modal del administrador */
+.admin-menu-content {
+    position: relative;
+    padding-top: 36px;
+}
+
+.admin-menu-content h2 {
+    margin: 0;
+    font-size: 24px;
+}
+
+.admin-menu-content p {
+    margin: 0;
+}
+
+.admin-modal-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #334155;
+    font-size: 26px;
+    line-height: 1;
+}
+
+.admin-modal-close:hover {
+    background: #e2e8f0;
+}
+
+.admin-menu-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.admin-menu-actions button {
+    width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+}
+
 /* Modal de espera de comunicación con el servidor central */
 .loading-overlay {
     z-index: 2000;
