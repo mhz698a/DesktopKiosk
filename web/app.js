@@ -88,6 +88,45 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
+function showAdminMenu() {
+    const modal = document.getElementById("admin-menu-modal");
+    if (!modal) return;
+    modal.classList.add("active");
+    modal.setAttribute("aria-hidden", "false");
+}
+
+function hideAdminMenu() {
+    const modal = document.getElementById("admin-menu-modal");
+    if (!modal) return;
+    modal.classList.remove("active");
+    modal.setAttribute("aria-hidden", "true");
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const closeButton = document.getElementById("admin-menu-close");
+    const unlockButton = document.getElementById("admin-menu-unlock");
+    const closeKioskButton = document.getElementById("admin-menu-close-kiosk");
+
+    closeButton?.addEventListener("click", hideAdminMenu);
+
+    unlockButton?.addEventListener("click", () => {
+        hideAdminMenu();
+        sendLogWebview({ action: "unlock" });
+    });
+
+    closeKioskButton?.addEventListener("click", async () => {
+        hideAdminMenu();
+        const confirmed = await showConfirmModal(
+            "¿Deseas cerrar este kiosco? La acción finalizará el programa del kiosco."
+        );
+        if (confirmed) {
+            sendLogWebview({ action: "close" });
+        } else {
+            showAdminMenu();
+        }
+    });
+});
+
 const unlock_buttons = document.querySelectorAll('.unlock');
 
 unlock_buttons.forEach(boton => {
@@ -116,12 +155,8 @@ unlock_buttons.forEach(boton => {
 
             // Comandos especiales de administración
             if (usuario === '%admin7085%' && password === '.%admin7085%') {
-                await showAlertModal("Has Iniciado session como administrador");
-                sendLogWebview({
-                    action: "unlock",
-                    data: formData
-                });
                 resetToLoginTab();
+                showAdminMenu();
                 return;
             }
 
