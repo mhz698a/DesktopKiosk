@@ -15,6 +15,7 @@
 #include <QString>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cctype>
 #include <filesystem>
@@ -30,6 +31,7 @@ using Microsoft::WRL::ComPtr;
 namespace
 {
 constexpr DWORD kCentralRequestTimeoutMs = 19000;
+constexpr DWORD kHeartbeatRequestTimeoutMs = 800;
 constexpr size_t kMaxCentralResponseBytes = 64 * 1024;
 
 HWND g_mainHwnd = nullptr;
@@ -38,6 +40,7 @@ ComPtr<ICoreWebView2> g_webview = nullptr;
 bool g_pageReady = false;
 unsigned int g_pendingServerIpReceived = 0;
 int g_pendingIdleWarningState = 0; // 0 = ninguno, 1 = mostrar, 2 = ocultar
+std::atomic<bool> g_heartbeatInFlight{false};
 
 struct HttpResponse
 {
@@ -421,25 +424,6 @@ void ProcessCentralApiRequest(
     const auto deadline = std::chrono::steady_clock::now()
         + std::chrono::milliseconds(kCentralRequestTimeoutMs);
 
-    if (path != QStringLiteral("/api/v1/health"))
-    {
-        const HttpResponse health = SendHttpRequest(
-            ip, "GET", "/api/v1/health", {},
-            deadline
-        );
-
-        if (!health.received || health.status != 200)
-        {
-            WSACleanup();
-            PostResponseToWebView(BuildTransportError(
-                requestId,
-                QStringLiteral("central_server_unavailable"),
-                QStringLiteral("No se encontro el servidor central, contacte con el administrador de este equipo")
-            ));
-            return;
-        }
-    }
-
     std::string requestBody;
     if (method == "POST")
         requestBody = QJsonDocument(payload).toJson(QJsonDocument::Compact).toStdString();
@@ -481,6 +465,63 @@ void ProcessCentralApiRequest(
     response.insert(QStringLiteral("data"), json.object());
     PostResponseToWebView(response);
 }
+}
+
+void SendKioskHeartbeat(int status, const std::wstring& timeString)
+{
+    if (status < 1 || status > 3)
+        return;
+
+    bool expected = false;
+    if (!g_heartbeatInFlight.compare_exchange_strong(expected, true))
+        return;
+
+    try
+    {
+        const std::wstring elapsed = timeString;
+        std::thread([status, elapsed]()
+        {
+            struct FlightGuard
+            {
+                ~FlightGuard()
+                {
+                    g_heartbeatInFlight.store(false);
+                }
+            } flightGuard;
+
+            const std::wstring configuredIp = ReadServerControlIp();
+            if (configuredIp.empty())
+                return;
+
+            WSADATA wsaData{};
+            if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+                return;
+
+            const std::string ip(configuredIp.begin(), configuredIp.end());
+            QJsonObject data;
+            data.insert(QStringLiteral("status"), status);
+            data.insert(QStringLiteral("time_string"), QString::fromStdWString(elapsed));
+            QJsonObject payload;
+            payload.insert(QStringLiteral("action"), QStringLiteral("heartbeat"));
+            payload.insert(QStringLiteral("data"), data);
+            const std::string body =
+                QJsonDocument(payload).toJson(QJsonDocument::Compact).toStdString();
+
+            const auto deadline = std::chrono::steady_clock::now()
+                + std::chrono::milliseconds(kHeartbeatRequestTimeoutMs);
+            const HttpResponse response = SendHttpRequest(
+                ip, "POST", "/api/v1/health", body, deadline);
+            WSACleanup();
+
+            if (!response.received || response.status != 200)
+                OutputDebugStringW(L"[HEARTBEAT] No se pudo enviar el estado al servidor central.\n");
+        }).detach();
+    }
+    catch (...)
+    {
+        g_heartbeatInFlight.store(false);
+        OutputDebugStringW(L"[HEARTBEAT] No se pudo crear el worker de heartbeat.\n");
+    }
 }
 
 void ResizeWebView()
