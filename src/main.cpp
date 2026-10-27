@@ -8,7 +8,10 @@
 
 #include <QApplication>
 
+#include <chrono>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <string>
 
 enum class KioskState { Locked, Unlocked };
@@ -22,12 +25,32 @@ HWND g_hwnd = nullptr;
 namespace
 {
 constexpr UINT_PTR kKioskIdleTimerId = 7085;
+constexpr UINT_PTR kKioskHeartbeatTimerId = 7086;
 constexpr DWORD kIdleWarningMilliseconds = 180000;
 constexpr DWORD kIdleLockMilliseconds = 300000;
 bool g_idleWarningShown = false;
+std::chrono::steady_clock::time_point g_sessionStartedAt{};
 }
 
 static HttpServer g_httpServer;
+
+std::wstring GetKioskTimeString()
+{
+    if (g_kioskState != KioskState::Unlocked)
+        return L"00:00:00";
+
+    const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::steady_clock::now() - g_sessionStartedAt).count();
+    const auto hours = elapsed / 3600;
+    const auto minutes = (elapsed % 3600) / 60;
+    const auto seconds = elapsed % 60;
+
+    std::wostringstream output;
+    output << std::setfill(L'0') << std::setw(2) << hours
+           << L":" << std::setw(2) << minutes
+           << L":" << std::setw(2) << seconds;
+    return output.str();
+}
 
 void UnlockKiosk()
 {
@@ -35,6 +58,7 @@ void UnlockKiosk()
         return;
 
     g_kioskState = KioskState::Unlocked;
+    g_sessionStartedAt = std::chrono::steady_clock::now();
     g_idleWarningShown = false;
     DispatchIdleWarningCleared();
     OutputDebugStringW(L"[KIOSK] Estado cambiado a UNLOCKED\n");
@@ -165,6 +189,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
                 }
                 return 0;
             }
+
+            if (wParam == kKioskHeartbeatTimerId)
+            {
+                const int status = g_kioskState == KioskState::Locked
+                    ? 1
+                    : (g_idleWarningShown ? 3 : 2);
+                SendKioskHeartbeat(status, GetKioskTimeString());
+                return 0;
+            }
             break;
 
         case WM_DISPLAYCHANGE:
@@ -246,6 +279,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
 
     InitializeWebView2(g_hwnd);
     SetTimer(g_hwnd, kKioskIdleTimerId, 1000, nullptr);
+    SetTimer(g_hwnd, kKioskHeartbeatTimerId, 1000, nullptr);
 
     if (!g_httpServer.Start(7085, [](const std::string& action)
     {
