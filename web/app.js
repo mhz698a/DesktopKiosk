@@ -611,7 +611,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 input.addEventListener('input', (e) => {
                     let value = e.target.value;
                     // Se agregaron los caracteres: @, \., \-, _
-                    value = value.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s%@\.\-_]/g, '');
+                    value = value.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ@._%+-]/g, '');
                     e.target.value = value;
                 });
             }
