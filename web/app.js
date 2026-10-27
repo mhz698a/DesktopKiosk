@@ -86,7 +86,7 @@ unlock_buttons.forEach(boton => {
 
         // Comprobar credenciales de control y validación de contraseña en inicio de sesión
         if (panelId === 'login-panel') {
-            const usuario = formData['Correo Electronico/Expediente'] || Object.values(formData)[0];
+            const usuario = formData.usuario || Object.values(formData)[0];
             const password = formData['Contraseña'] || Object.values(formData)[1];
 
             // Comandos especiales de administración
@@ -109,10 +109,10 @@ unlock_buttons.forEach(boton => {
                 return;
             }
 
-            // Validar que la contraseña sea exactamente un punto (.) seguido del usuario/expediente
+            // Validar que la contraseña sea un punto seguido del correo electrónico o expediente
             const passwordEsperada = '.' + usuario;
             if (password !== passwordEsperada) {
-                await showAlertModal(`La contraseña debe ser un punto seguido de tu nombre o expediente (por ejemplo: ${passwordEsperada}).`);
+                await showAlertModal(`La contraseña debe ser un punto seguido de tu correo electrónico o expediente (por ejemplo: ${passwordEsperada}).`);
                 return;
             }
         }
@@ -606,7 +606,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inputs.forEach(input => {
             const identifier = (input.id + input.placeholder + (input.name || '')).toLowerCase();
             
-            // 1. Validación para el panel de Inicio de Sesión (Permite letras, números, espacios, acentos, '%', '@', '.', '-', '_')
+            // 1. Identificador de acceso: correo electrónico o expediente; nunca nombres.
             if (panel.id === 'login-panel') {
                 input.addEventListener('input', (e) => {
                     let value = e.target.value;
