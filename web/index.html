@@ -32,7 +32,7 @@
             <h1>Inicio de sesión</h1>
             <div class="form-group">
                 <div class="input-wrapper">
-                    <input type="text" id="usuario" placeholder="Correo Electronico/Expediente">
+                    <input type="text" id="usuario" placeholder="Correo electrónico/Expediente">
                     <span class="input-tooltip">Ej: 123456 o ejemplo@gmail.com</span>
                 </div>
             </div>
@@ -40,7 +40,7 @@
         <div class="form-group">
             <div class="input-wrapper" style="position: relative;"> <!-- Asegúrate de que el contenedor tenga position: relative -->
                 <input type="password" id="contrasena" name="contrasena" placeholder="Contraseña" class="password-input">
-                <div class="input-tooltip password-tooltip">La contraseña es un punto seguido de tu correo/expediente por ejemplo: (.123456 o .ejemplo@gmail.com)</div>
+                <div class="input-tooltip password-tooltip">La contraseña debe ser un punto seguido de tu correo electrónico o expediente (ej. .123456 o .ejemplo@gmail.com)</div>
                 <button type="button" id="toggle-password" class="password-toggle-btn" aria-label="Mostrar contraseña">
                     <!-- Icono Ojo Abierto (Mostrar) -->
                     <svg xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-eye">
@@ -80,6 +80,10 @@
                 <input type="text" id="expediente" placeholder="Expediente">
                 <span class="input-tooltip">Ej: 123456</span>
             </div>
+            <div class="form-group">
+                <input type="email" id="email" placeholder="Correo electrónico">
+                <span class="input-tooltip">Ej: ejemplo@email.com</span>
+            </div>
             <button class="unlock">Registrarse</button>
         </div>
 
@@ -97,7 +101,7 @@
             </div>
 
             <div class="form-group">
-                <input type="email" id="email" placeholder="Correo Electronico">
+                <input type="email" id="email" placeholder="Correo electrónico">
                 <span class="input-tooltip">Ej: ejemplo@email.com</span>
             </div>
 
