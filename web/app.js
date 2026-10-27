@@ -62,6 +62,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+document.addEventListener('DOMContentLoaded', () => {
+    const closeBtn = document.getElementById('close');
+    if (closeBtn) {
+        const updateClock = () => {
+            const now = new Date();
+            const options = { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit',
+                second: '2-digit'
+            };
+
+            let formattedDate = now.toLocaleDateString('es-ES', options);
+            formattedDate = formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
+            closeBtn.textContent = formattedDate;
+        };
+
+        updateClock();
+        setInterval(updateClock, 1000);
+    }
+});
+
 
 const unlock_buttons = document.querySelectorAll('.unlock');
 
