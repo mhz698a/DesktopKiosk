@@ -9,6 +9,7 @@
 #include <QApplication>
 
 #include <chrono>
+#include <cstdio>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -277,7 +278,7 @@ bool RequestWindowsPowerAction(bool restart)
         wchar_t message[256]{};
         swprintf_s(
             message,
-            L"Windows no pudo %s el equipo (error %lu).",
+            L"Windows no pudo %ls el equipo (error %lu).",
             restart ? L"reiniciar" : L"apagar",
             errorCode
         );
