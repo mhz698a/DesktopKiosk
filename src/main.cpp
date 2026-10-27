@@ -209,6 +209,88 @@ void CloseKiosk()
         PostMessageW(g_hwnd, WM_KIOSK_PROGRAMMATIC_CLOSE, 0, 0);
 }
 
+bool RequestWindowsPowerAction(bool restart)
+{
+    HANDLE token = nullptr;
+    if (!OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+            &token))
+    {
+        OutputDebugStringW(L"[POWER] No se pudo abrir el token de proceso.\n");
+        MessageBoxW(
+            g_hwnd,
+            L"No se pudo preparar el apagado o reinicio de Windows. Comprueba los privilegios de la cuenta.",
+            L"DesktopKiosk",
+            MB_OK | MB_ICONERROR
+        );
+        return false;
+    }
+
+    TOKEN_PRIVILEGES privileges{};
+    privileges.PrivilegeCount = 1;
+    if (!LookupPrivilegeValueW(nullptr, SE_SHUTDOWN_NAME, &privileges.Privileges[0].Luid))
+    {
+        CloseHandle(token);
+        OutputDebugStringW(L"[POWER] No se encontró el privilegio SE_SHUTDOWN_NAME.\n");
+        MessageBoxW(
+            g_hwnd,
+            L"La cuenta de Windows no tiene disponible el privilegio necesario para apagar o reiniciar el equipo.",
+            L"DesktopKiosk",
+            MB_OK | MB_ICONERROR
+        );
+        return false;
+    }
+    privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+    SetLastError(ERROR_SUCCESS);
+    const BOOL privilegeAdjusted = AdjustTokenPrivileges(
+        token,
+        FALSE,
+        &privileges,
+        sizeof(TOKEN_PRIVILEGES),
+        nullptr,
+        nullptr
+    );
+    const DWORD privilegeError = GetLastError();
+    CloseHandle(token);
+
+    if (!privilegeAdjusted || privilegeError != ERROR_SUCCESS)
+    {
+        OutputDebugStringW(L"[POWER] No se pudo habilitar SE_SHUTDOWN_NAME.\n");
+        MessageBoxW(
+            g_hwnd,
+            L"La cuenta de Windows no tiene permiso para apagar o reiniciar este equipo.",
+            L"DesktopKiosk",
+            MB_OK | MB_ICONERROR
+        );
+        return false;
+    }
+
+    const UINT flags = (restart ? EWX_REBOOT : EWX_POWEROFF) | EWX_FORCEIFHUNG;
+    const DWORD reason = SHTDN_REASON_MAJOR_APPLICATION
+        | SHTDN_REASON_MINOR_OTHER
+        | SHTDN_REASON_FLAG_PLANNED;
+    if (!ExitWindowsEx(flags, reason))
+    {
+        const DWORD errorCode = GetLastError();
+        wchar_t message[256]{};
+        swprintf_s(
+            message,
+            L"Windows no pudo %s el equipo (error %lu).",
+            restart ? L"reiniciar" : L"apagar",
+            errorCode
+        );
+        OutputDebugStringW(message);
+        OutputDebugStringW(L"\n");
+        MessageBoxW(g_hwnd, message, L"DesktopKiosk", MB_OK | MB_ICONERROR);
+        return false;
+    }
+
+    return true;
+}
+
+
 static void ConfigureFullscreenWindow(HWND hwnd, bool showWindow)
 {
     HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
@@ -253,6 +335,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 
         case WM_KIOSK_PROGRAMMATIC_CLOSE:
             DestroyWindow(hwnd);
+            return 0;
+
+        case WM_KIOSK_SHUTDOWN_PC:
+            RequestWindowsPowerAction(false);
+            return 0;
+
+        case WM_KIOSK_RESTART_PC:
+            RequestWindowsPowerAction(true);
             return 0;
 
         case WM_CLOSE:
@@ -441,6 +531,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
             PostMessageW(g_hwnd, WM_KIOSK_CLOSE, 0, 0);
         else if (action == "server_ip_received")
             PostMessageW(g_hwnd, WM_KIOSK_SERVER_IP_RECEIVED, 0, 0);
+        else if (action == "shutdown_pc")
+            PostMessageW(g_hwnd, WM_KIOSK_SHUTDOWN_PC, 0, 0);
+        else if (action == "restart_pc")
+            PostMessageW(g_hwnd, WM_KIOSK_RESTART_PC, 0, 0);
     }))
     {
         OutputDebugStringW(L"[HTTP] Servidor REST no iniciado.\n");
