@@ -30,6 +30,60 @@ constexpr DWORD kIdleWarningMilliseconds = 180000;
 constexpr DWORD kIdleLockMilliseconds = 300000;
 bool g_idleWarningShown = false;
 std::chrono::steady_clock::time_point g_sessionStartedAt{};
+HHOOK g_keyboardHook = nullptr;
+
+// WH_KEYBOARD_LL es necesario para poder interceptar atajos que Windows procesa
+// antes de entregar mensajes normales a la cola de la ventana. Aunque el hook
+// recibe eventos del escritorio, solo bloquea teclas cuando el foreground
+// pertenece a este proceso.
+bool IsDesktopKioskForeground() noexcept
+{
+    const HWND foregroundWindow = GetForegroundWindow();
+    if (!foregroundWindow)
+        return false;
+
+    DWORD foregroundProcessId = 0;
+    GetWindowThreadProcessId(foregroundWindow, &foregroundProcessId);
+    return foregroundProcessId == GetCurrentProcessId();
+}
+
+LRESULT CALLBACK KioskKeyboardHookProc(int code, WPARAM wParam, LPARAM lParam)
+{
+    if (code == HC_ACTION && lParam != 0 && IsDesktopKioskForeground())
+    {
+        const auto* key = reinterpret_cast<const KBDLLHOOKSTRUCT*>(lParam);
+        const bool keyDownOrUp =
+            wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN ||
+            wParam == WM_KEYUP || wParam == WM_SYSKEYUP;
+
+        if (keyDownOrUp)
+        {
+            // La tecla Windows se bloquea en ambos lados para evitar que abra
+            // Inicio o deje un estado de tecla modificado.
+            if (key->vkCode == VK_LWIN || key->vkCode == VK_RWIN)
+                return 1;
+
+            const bool controlDown =
+                (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+            const bool shiftDown =
+                (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+            const bool altDown = (key->flags & LLKHF_ALTDOWN) != 0;
+
+            // Ctrl+Shift+Esc se deja pasar expresamente; Ctrl+Alt+Supr no
+            // coincide con ninguna de las teclas bloqueadas.
+            if (key->vkCode == VK_ESCAPE && controlDown &&
+                !shiftDown && !altDown)
+            {
+                return 1;
+            }
+
+            if (key->vkCode == VK_TAB && altDown && !controlDown)
+                return 1;
+        }
+    }
+
+    return CallNextHookEx(g_keyboardHook, code, wParam, lParam);
+}
 }
 
 static HttpServer g_httpServer;
@@ -215,6 +269,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
             return 0;
 
         case WM_DESTROY:
+            if (g_keyboardHook)
+            {
+                UnhookWindowsHookEx(g_keyboardHook);
+                g_keyboardHook = nullptr;
+            }
             g_httpServer.Stop();
             PostQuitMessage(0);
             return 0;
@@ -276,6 +335,27 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
 
     ConfigureFullscreenWindow(g_hwnd, true);
     UpdateWindow(g_hwnd);
+
+    g_keyboardHook = SetWindowsHookExW(
+        WH_KEYBOARD_LL,
+        KioskKeyboardHookProc,
+        GetModuleHandleW(nullptr),
+        0
+    );
+    if (!g_keyboardHook)
+    {
+        const DWORD errorCode = GetLastError();
+        wchar_t errorMessage[256]{};
+        swprintf_s(
+            errorMessage,
+            L"No se pudo activar el bloqueo de atajos de teclado (error %lu). "
+            L"DesktopKiosk no puede iniciar en modo kiosco.",
+            errorCode
+        );
+        MessageBoxW(g_hwnd, errorMessage, L"DesktopKiosk", MB_ICONERROR);
+        DestroyWindow(g_hwnd);
+        return 1;
+    }
 
     InitializeWebView2(g_hwnd);
     SetTimer(g_hwnd, kKioskIdleTimerId, 1000, nullptr);
