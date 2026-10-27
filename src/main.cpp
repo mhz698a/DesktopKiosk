@@ -137,7 +137,7 @@ LRESULT CALLBACK KioskKeyboardHookProc(int code, WPARAM wParam, LPARAM lParam)
                     return 1;
                 }
 
-                if (key->vkCode == VK_TAB && altDown && !controlDown)
+                if (key->vkCode == VK_TAB && altDown)
                     return 1;
             }
         }
