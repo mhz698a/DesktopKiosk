@@ -125,14 +125,14 @@ El token es común para todas las instalaciones de esta versión y no debe consi
 
 El inicio de sesión y los registros no pasan por un endpoint HTTP adicional de DesktopKiosk. El JavaScript de WebView2 envía una solicitud mediante `window.chrome.webview.postMessage`; C++ lee `[network] server_control_ip` de `%APPDATA%\DesktopKiosk\settings.ini`, ejecuta la petición HTTP al servidor central y publica la respuesta de vuelta por el mismo canal WebView2. No se añade una ruta HTTP local para las solicitudes de login o registro.
 
-Antes de cada operación, DesktopKiosk comprueba que el servidor central responde a `GET /api/v1/health` en el puerto 7085. La comprobación y la operación comparten un límite de tiempo nativo de 19 segundos; la interfaz mantiene el modal de espera un máximo de 20 segundos. La API central actual no requiere un token Bearer para estas rutas; DesktopKiosk envía el encabezado `X-Kiosk-Name`.
+DesktopKiosk envía un heartbeat mediante `POST /api/v1/health` cada segundo, desde un hilo en segundo plano y con un timeout breve para no bloquear la interfaz. El estado enviado es `1` cuando el kiosco está disponible, `2` cuando hay una sesión activa y `3` cuando esa sesión supera 180 segundos sin teclado o mouse. `time_string` contiene el tiempo transcurrido de la sesión en formato `HH:MM:SS`. El cliente no envía su IP en el JSON: el centro identifica el equipo mediante la IP de origen de la conexión. El estado `0` (Sin conexión) lo asigna el centro cuando pasan 4 segundos sin recibir heartbeats. Las operaciones de login y registro se envían directamente a sus rutas funcionales, sin una petición GET de health previa. La interfaz mantiene un timeout de 20 segundos para esas operaciones. La API central actual no requiere un token Bearer para estas rutas; DesktopKiosk envía el encabezado `X-Kiosk-Name`.
 
 Rutas de la API central implementadas en `DesktopKioskCenter/api_server.py`:
 
 - Inicio de sesión: `POST /api/v1/auth-client-pc/login`
 - Registro de alumno: `POST /api/v1/users/register/alumno`
 - Registro de externo: `POST /api/v1/users/register/externo`
-- Disponibilidad: `GET /api/v1/health`
+- Heartbeat/estado del kiosco: `POST /api/v1/health`
 
 Las solicitudes POST usan el cuerpo JSON que espera la API central, con las claves de primer nivel `action` y `data`. Por ejemplo:
 
@@ -151,6 +151,6 @@ La API devuelve `unlocked` y `message`. DesktopKiosk desbloquea el kiosco cuando
 Errores de conectividad:
 
 - Si no hay una IP IPv4 válida en `[network] server_control_ip`, C++ comunica: `Este cliente no conoce el servidor central, contacte con el administrador de este equipo`.
-- Si falla `GET /api/v1/health`, la petición no obtiene respuesta dentro del timeout o el servidor deja de responder, C++ comunica: `No se encontro el servidor central, contacte con el administrador de este equipo`.
+- Si la operación de login o registro no obtiene respuesta dentro del timeout o el servidor central deja de responder, C++ comunica: `No se encontro el servidor central, contacte con el administrador de este equipo`.
 
 Las alertas se renderizan con `showAlertModal()`; no se utiliza `alert()` nativo de WebView2.
