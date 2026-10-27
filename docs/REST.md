@@ -163,3 +163,22 @@ Las alertas se renderizan con `showAlertModal()`; no se utiliza `alert()` nativo
 DesktopKiosk instala un hook de teclado de bajo nivel mientras se ejecuta. El hook solo suprime combinaciones cuando la ventana en primer plano pertenece al proceso de DesktopKiosk; en el resto de aplicaciones deja pasar los eventos. No requiere privilegios de administrador. Se bloquean la tecla Windows, Ctrl+Esc y Alt+Tab. Alt+F4 se intercepta aparte mediante el evento nativo `AcceleratorKeyPressed` del controlador WebView2 y se marca como manejado.
 
 Ctrl+Shift+Esc se deja pasar de forma explícita. Ctrl+Alt+Supr tampoco se intercepta: es una secuencia segura de Windows que una aplicación de usuario no puede bloquear mediante este hook. Como protección adicional, la ventana nativa ignora mensajes `WM_CLOSE` no autorizados, incluso si Alt+F4 llega a la capa Win32 antes de que WebView2 esté listo; el cierre solicitado por la API usa un mensaje interno dedicado. Si el hook no puede instalarse, DesktopKiosk no inicia la interfaz del kiosco.
+
+
+## Control remoto de energía de Windows
+
+El endpoint autenticado `POST /api/kiosk/pc-control` permite solicitar apagado o reinicio desde DesktopKioskCenter. Requiere el encabezado `Authorization: Bearer <token configurado>` como las demás rutas POST y un cuerpo JSON con una de las acciones permitidas:
+
+~~~json
+{ "action": "shutdown-pc" }
+~~~
+
+~~~json
+{ "action": "restart-pc" }
+~~~
+
+Las acciones válidas son exactamente `shutdown-pc` y `restart-pc`. Una solicitud válida devuelve `202 Accepted`; un JSON inválido o una acción no admitida devuelven `400 Bad Request`, y un token incorrecto devuelve `401 Unauthorized`. La interfaz de DesktopKioskCenter solicita confirmación antes de enviar estas operaciones. El cliente intenta habilitar el privilegio de Windows `SE_SHUTDOWN_NAME`; si la cuenta de ejecución no dispone del permiso requerido, muestra un error y Windows no se apagará ni reiniciará.
+
+## Menú del administrador
+
+En la pantalla de inicio de sesión, el usuario `%admin7085%` con contraseña `.%admin7085%` abre el diálogo modal de administrador en lugar de desbloquear automáticamente. El diálogo ofrece `Desbloquear` y `Cerrar Kiosko`; el segundo solicita confirmación antes de cerrar el cliente.
