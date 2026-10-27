@@ -445,6 +445,33 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
 {
+    // Bloquea una segunda ejecución antes de inicializar Qt o crear ventanas.
+    // El objeto Local se comparte entre procesos de la misma sesión de Windows.
+    constexpr wchar_t kSingleInstanceMutexName[] = L"Local\\DesktopKiosk.SingleInstance";
+    SetLastError(ERROR_SUCCESS);
+    HANDLE singleInstanceMutex = CreateMutexW(nullptr, FALSE, kSingleInstanceMutexName);
+    if (singleInstanceMutex == nullptr)
+    {
+        const DWORD errorCode = GetLastError();
+        wchar_t errorMessage[256]{};
+        swprintf_s(
+            errorMessage,
+            L"No se pudo comprobar si DesktopKiosk ya está ejecutándose (error %lu).",
+            errorCode
+        );
+        MessageBoxW(nullptr, errorMessage, L"DesktopKiosk", MB_OK | MB_ICONERROR);
+        return 1;
+    }
+
+    const DWORD mutexError = GetLastError();
+    if (mutexError == ERROR_ALREADY_EXISTS)
+    {
+        // La instancia principal conserva el handle; esta ejecución no debe
+        // crear otra ventana ni intentar abrir de nuevo el puerto HTTP 7085.
+        CloseHandle(singleInstanceMutex);
+        return 0;
+    }
+
     // Qt 6 comparte el bucle de mensajes Win32 para mantener operativos
     // la ventana nativa del kiosco y las callbacks de WebView2.
     int qtArgc = 1;
@@ -541,5 +568,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
         OutputDebugStringW(L"[HTTP] Servidor REST no iniciado.\n");
     }
 
-    return qtApp.exec();
+    const int exitCode = qtApp.exec();
+    CloseHandle(singleInstanceMutex);
+    return exitCode;
 }
