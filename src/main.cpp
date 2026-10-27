@@ -145,7 +145,7 @@ void CloseKiosk()
 {
     DestroySessionWindow();
     if (g_hwnd != nullptr)
-        PostMessageW(g_hwnd, WM_CLOSE, 0, 0);
+        PostMessageW(g_hwnd, WM_KIOSK_PROGRAMMATIC_CLOSE, 0, 0);
 }
 
 static void ConfigureFullscreenWindow(HWND hwnd, bool showWindow)
@@ -188,6 +188,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 
         case WM_KIOSK_CLOSE:
             CloseKiosk();
+            return 0;
+
+        case WM_KIOSK_PROGRAMMATIC_CLOSE:
+            DestroyWindow(hwnd);
+            return 0;
+
+        case WM_CLOSE:
+            // Los cierres nativos no autorizados (incluidos los de respaldo
+            // para Alt+F4) no deben sacar al usuario del modo kiosco.
             return 0;
 
         case WM_KIOSK_CENTRAL_RESPONSE:
