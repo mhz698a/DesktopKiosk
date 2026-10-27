@@ -86,7 +86,7 @@ unlock_buttons.forEach(boton => {
 
         // Comprobar credenciales de control y validación de contraseña en inicio de sesión
         if (panelId === 'login-panel') {
-            const usuario = formData['Nombres/Expediente'] || Object.values(formData)[0];
+            const usuario = formData['Correo Electronico/Expediente'] || Object.values(formData)[0];
             const password = formData['Contraseña'] || Object.values(formData)[1];
 
             // Comandos especiales de administración
@@ -606,11 +606,12 @@ document.addEventListener('DOMContentLoaded', () => {
         inputs.forEach(input => {
             const identifier = (input.id + input.placeholder + (input.name || '')).toLowerCase();
             
-            // 1. Validación para el panel de Inicio de Sesión (Permite letras, números, espacios, acentos y '%')
+            // 1. Validación para el panel de Inicio de Sesión (Permite letras, números, espacios, acentos, '%', '@', '.', '-', '_')
             if (panel.id === 'login-panel') {
                 input.addEventListener('input', (e) => {
                     let value = e.target.value;
-                    value = value.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s%]/g, '');
+                    // Se agregaron los caracteres: @, \., \-, _
+                    value = value.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s%@\.\-_]/g, '');
                     e.target.value = value;
                 });
             }
