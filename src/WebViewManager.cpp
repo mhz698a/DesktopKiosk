@@ -715,6 +715,34 @@ void InitializeWebView2(HWND hwnd)
 
                             g_controller = controller;
 
+                            // Evita que Alt+F4 cierre la aplicación desde WebView2.
+                            HRESULT acceleratorResult = controller->add_AcceleratorKeyPressed(
+                                Callback<ICoreWebView2AcceleratorKeyPressedEventHandler>(
+                                    [](ICoreWebView2Controller*,
+                                       ICoreWebView2AcceleratorKeyPressedEventArgs* args) -> HRESULT
+                                    {
+                                        COREWEBVIEW2_KEY_EVENT_KIND eventKind{};
+                                        UINT virtualKey = 0;
+                                        INT keyEventLParam = 0;
+
+                                        if (SUCCEEDED(args->get_KeyEventKind(&eventKind)) &&
+                                            eventKind == COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN &&
+                                            SUCCEEDED(args->get_VirtualKey(&virtualKey)) &&
+                                            virtualKey == VK_F4 &&
+                                            SUCCEEDED(args->get_KeyEventLParam(&keyEventLParam)) &&
+                                            (keyEventLParam & (1L << 29)) != 0)
+                                        {
+                                            return args->put_Handled(TRUE);
+                                        }
+
+                                        return S_OK;
+                                    })
+                                .Get(),
+                                nullptr
+                            );
+                            if (FAILED(acceleratorResult))
+                                return acceleratorResult;
+
                             HRESULT hr = controller->get_CoreWebView2(&g_webview);
                             if (FAILED(hr))
                                 return hr;
