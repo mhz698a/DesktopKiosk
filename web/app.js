@@ -609,13 +609,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // 1. Identificador de acceso: correo electrónico o expediente; nunca nombres.
             if (panel.id === 'login-panel') {
                 input.addEventListener('input', (e) => {
-                    let value = e.target.value;
-                    // Se agregaron los caracteres: @, \., \-, _
-                    value = value.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ@._%+-]/g, '');
-                    e.target.value = value;
+                    // No eliminar caracteres válidos de correos; el servidor valida el identificador.
+                    e.target.value = e.target.value.replace(/\s/g, '');
                 });
             }
-            
+
             // 2. Validación para campos de nombres o apellidos (Registros)
             else if (identifier.includes('nombre') || identifier.includes('apellido') || identifier.includes('pat') || identifier.includes('mat')) {
                 input.addEventListener('input', (e) => {
