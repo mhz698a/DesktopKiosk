@@ -35,7 +35,15 @@ HHOOK g_keyboardHook = nullptr;
 // WH_KEYBOARD_LL es necesario para poder interceptar atajos que Windows procesa
 // antes de entregar mensajes normales a la cola de la ventana. Aunque el hook
 // recibe eventos del escritorio, solo bloquea teclas cuando el foreground
-// pertenece a este proceso.
+// pertenece a este proceso. No se consulta GetAsyncKeyState aquí: Windows aún
+// no ha actualizado ese estado cuando ejecuta un hook de bajo nivel.
+bool g_leftControlDown = false;
+bool g_rightControlDown = false;
+bool g_leftShiftDown = false;
+bool g_rightShiftDown = false;
+bool g_leftAltDown = false;
+bool g_rightAltDown = false;
+
 bool IsDesktopKioskForeground() noexcept
 {
     const HWND foregroundWindow = GetForegroundWindow();
@@ -47,38 +55,91 @@ bool IsDesktopKioskForeground() noexcept
     return foregroundProcessId == GetCurrentProcessId();
 }
 
+void UpdateTrackedModifierState(const KBDLLHOOKSTRUCT& key, bool keyDown) noexcept
+{
+    switch (key.vkCode)
+    {
+        case VK_LCONTROL:
+            g_leftControlDown = keyDown;
+            break;
+        case VK_RCONTROL:
+            g_rightControlDown = keyDown;
+            break;
+        case VK_CONTROL:
+            if ((key.flags & LLKHF_EXTENDED) != 0)
+                g_rightControlDown = keyDown;
+            else
+                g_leftControlDown = keyDown;
+            break;
+
+        case VK_LSHIFT:
+            g_leftShiftDown = keyDown;
+            break;
+        case VK_RSHIFT:
+            g_rightShiftDown = keyDown;
+            break;
+        case VK_SHIFT:
+            if (MapVirtualKeyW(key.scanCode, MAPVK_VSC_TO_VK_EX) == VK_RSHIFT)
+                g_rightShiftDown = keyDown;
+            else
+                g_leftShiftDown = keyDown;
+            break;
+
+        case VK_LMENU:
+            g_leftAltDown = keyDown;
+            break;
+        case VK_RMENU:
+            g_rightAltDown = keyDown;
+            break;
+        case VK_MENU:
+            if ((key.flags & LLKHF_EXTENDED) != 0)
+                g_rightAltDown = keyDown;
+            else
+                g_leftAltDown = keyDown;
+            break;
+    }
+}
+
 LRESULT CALLBACK KioskKeyboardHookProc(int code, WPARAM wParam, LPARAM lParam)
 {
-    if (code == HC_ACTION && lParam != 0 && IsDesktopKioskForeground())
+    if (code == HC_ACTION && lParam != 0)
     {
         const auto* key = reinterpret_cast<const KBDLLHOOKSTRUCT*>(lParam);
-        const bool keyDownOrUp =
-            wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN ||
+        const bool keyDown =
+            wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN;
+        const bool keyUp =
             wParam == WM_KEYUP || wParam == WM_SYSKEYUP;
 
-        if (keyDownOrUp)
+        if (keyDown || keyUp)
         {
-            // La tecla Windows se bloquea en ambos lados para evitar que abra
-            // Inicio o deje un estado de tecla modificado.
-            if (key->vkCode == VK_LWIN || key->vkCode == VK_RWIN)
-                return 1;
+            // Actualiza el estado propio antes de evaluar el atajo. El hook
+            // de bajo nivel se ejecuta antes de que Windows actualice el suyo.
+            UpdateTrackedModifierState(*key, keyDown);
 
-            const bool controlDown =
-                (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
-            const bool shiftDown =
-                (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
-            const bool altDown = (key->flags & LLKHF_ALTDOWN) != 0;
-
-            // Ctrl+Shift+Esc se deja pasar expresamente; Ctrl+Alt+Supr no
-            // coincide con ninguna de las teclas bloqueadas.
-            if (key->vkCode == VK_ESCAPE && controlDown &&
-                !shiftDown && !altDown)
+            if (IsDesktopKioskForeground())
             {
-                return 1;
-            }
+                // La tecla Windows se bloquea en ambos lados para evitar que
+                // abra Inicio o deje un estado de tecla modificado.
+                if (key->vkCode == VK_LWIN || key->vkCode == VK_RWIN)
+                    return 1;
 
-            if (key->vkCode == VK_TAB && altDown && !controlDown)
-                return 1;
+                const bool controlDown = g_leftControlDown || g_rightControlDown;
+                const bool shiftDown = g_leftShiftDown || g_rightShiftDown;
+                const bool altDown =
+                    g_leftAltDown || g_rightAltDown ||
+                    (key->flags & LLKHF_ALTDOWN) != 0;
+
+                // Ctrl+Shift+Esc se deja pasar expresamente; Ctrl+Alt+Supr no
+                // coincide con ninguna de las teclas bloqueadas.
+                if (key->vkCode == VK_ESCAPE && controlDown &&
+                    !shiftDown && !altDown)
+                {
+                    return 1;
+                }
+
+                if (key->vkCode == VK_TAB && altDown && !controlDown)
+                    return 1;
+            }
         }
     }
 
