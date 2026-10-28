@@ -9,7 +9,7 @@
 <body>
 
     <div class="topbar">
-        <button id="close">×</button>
+        <button id="close" title="Cerrar"></button>
     </div>
 
     <main>
@@ -32,15 +32,15 @@
             <h1>Inicio de sesión</h1>
             <div class="form-group">
                 <div class="input-wrapper">
-                    <input type="text" id="usuario" placeholder="Nombres/Expediente">
-                    <span class="input-tooltip">Ej: 123456 o Maria Jose</span>
+                    <input type="text" id="usuario" placeholder="Correo electrónico/Expediente">
+                    <span class="input-tooltip">Ej: 123456 o ejemplo@gmail.com</span>
                 </div>
             </div>
 
         <div class="form-group">
             <div class="input-wrapper" style="position: relative;"> <!-- Asegúrate de que el contenedor tenga position: relative -->
                 <input type="password" id="contrasena" name="contrasena" placeholder="Contraseña" class="password-input">
-                <div class="input-tooltip">La contraseña es un punto seguido de tu nombre/expediente (ej. .123456 o .Maria Jose)</div>
+                <div class="input-tooltip password-tooltip">La contraseña debe ser un punto seguido de tu correo electrónico o expediente (ej. .123456 o .ejemplo@gmail.com)</div>
                 <button type="button" id="toggle-password" class="password-toggle-btn" aria-label="Mostrar contraseña">
                     <!-- Icono Ojo Abierto (Mostrar) -->
                     <svg xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-eye">
@@ -80,6 +80,10 @@
                 <input type="text" id="expediente" placeholder="Expediente">
                 <span class="input-tooltip">Ej: 123456</span>
             </div>
+            <div class="form-group">
+                <input type="email" id="email" placeholder="Correo electrónico">
+                <span class="input-tooltip">Ej: ejemplo@email.com</span>
+            </div>
             <button class="unlock">Registrarse</button>
         </div>
 
@@ -97,7 +101,7 @@
             </div>
 
             <div class="form-group">
-                <input type="email" id="email" placeholder="Correo Electronico">
+                <input type="email" id="email" placeholder="Correo electrónico">
                 <span class="input-tooltip">Ej: ejemplo@email.com</span>
             </div>
 
@@ -128,6 +132,8 @@
         Coordinación General de Servicios de Informatización © 2027
     </footer>
 
+    <div id="idle-warning" class="idle-warning" role="status" aria-live="assertive" aria-hidden="true"></div>
+
     <script src="app.js"></script>
 
     <div id="confirm-modal" class="modal-overlay">
@@ -136,6 +142,19 @@
             <div class="modal-buttons">
                 <button id="confirm-cancel" class="modal-btn cancel">Cancelar</button>
                 <button id="confirm-ok" class="modal-btn accept">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Menú de administración, disponible mediante las credenciales administrativas locales -->
+    <div id="admin-menu-modal" class="modal-overlay" aria-hidden="true">
+        <div class="modal-content admin-menu-content" role="dialog" aria-modal="true" aria-labelledby="admin-menu-title">
+            <button type="button" id="admin-menu-close" class="admin-modal-close" aria-label="Cerrar diálogo">×</button>
+            <h2 id="admin-menu-title">Menú del administrador</h2>
+            <p>Selecciona una acción para este kiosco.</p>
+            <div class="admin-menu-actions">
+                <button type="button" id="admin-menu-unlock" class="modal-btn accept">Desbloquear</button>
+                <button type="button" id="admin-menu-close-kiosk" class="modal-btn cancel">Cerrar Kiosko</button>
             </div>
         </div>
     </div>
@@ -150,5 +169,13 @@
         </div>
     </div>
 
+
+    <!-- Modal bloqueante mientras se comunica con el servidor central -->
+    <div id="loadingModal" class="modal-overlay loading-overlay" aria-hidden="true">
+        <div class="modal-content loading-content" role="status" aria-live="polite">
+            <div class="loading-spinner" aria-hidden="true"></div>
+            <p id="loading-message">Comunicando con el servidor central...</p>
+        </div>
+    </div>
 </body>
 </html>

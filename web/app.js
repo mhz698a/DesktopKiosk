@@ -1,3 +1,19 @@
+// El kiosco no expone menú contextual ni atajos de herramientas de desarrollo.
+document.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+});
+
+document.addEventListener("keydown", (event) => {
+    const key = event.key.toLowerCase();
+    const devToolsShortcut = key === "f12"
+        || (event.ctrlKey && event.shiftKey && ["i", "j", "c"].includes(key))
+        || (event.ctrlKey && key === "u");
+    if (devToolsShortcut) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+}, true);
+
 function sendLogWebview(datos) {
     if (window.chrome?.webview?.postMessage) { // if is webview2 c++
         window.chrome.webview.postMessage(datos);
@@ -46,6 +62,70 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+document.addEventListener('DOMContentLoaded', () => {
+    const closeBtn = document.getElementById('close');
+    if (closeBtn) {
+        const updateClock = () => {
+            const now = new Date();
+            const options = { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit',
+                second: '2-digit'
+            };
+
+            let formattedDate = now.toLocaleDateString('es-ES', options);
+            formattedDate = formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
+            closeBtn.textContent = formattedDate;
+        };
+
+        updateClock();
+        setInterval(updateClock, 1000);
+    }
+});
+
+
+function showAdminMenu() {
+    const modal = document.getElementById("admin-menu-modal");
+    if (!modal) return;
+    modal.classList.add("active");
+    modal.setAttribute("aria-hidden", "false");
+}
+
+function hideAdminMenu() {
+    const modal = document.getElementById("admin-menu-modal");
+    if (!modal) return;
+    modal.classList.remove("active");
+    modal.setAttribute("aria-hidden", "true");
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const closeButton = document.getElementById("admin-menu-close");
+    const unlockButton = document.getElementById("admin-menu-unlock");
+    const closeKioskButton = document.getElementById("admin-menu-close-kiosk");
+
+    closeButton?.addEventListener("click", hideAdminMenu);
+
+    unlockButton?.addEventListener("click", () => {
+        hideAdminMenu();
+        sendLogWebview({ action: "unlock" });
+    });
+
+    closeKioskButton?.addEventListener("click", async () => {
+        hideAdminMenu();
+        const confirmed = await showConfirmModal(
+            "¿Deseas cerrar este kiosco? La acción finalizará el programa del kiosco."
+        );
+        if (confirmed) {
+            sendLogWebview({ action: "close" });
+        } else {
+            showAdminMenu();
+        }
+    });
+});
 
 const unlock_buttons = document.querySelectorAll('.unlock');
 
@@ -70,17 +150,13 @@ unlock_buttons.forEach(boton => {
 
         // Comprobar credenciales de control y validación de contraseña en inicio de sesión
         if (panelId === 'login-panel') {
-            const usuario = formData['Nombres/Expediente'] || Object.values(formData)[0];
+            const usuario = formData.usuario || Object.values(formData)[0];
             const password = formData['Contraseña'] || Object.values(formData)[1];
 
             // Comandos especiales de administración
             if (usuario === '%admin7085%' && password === '.%admin7085%') {
-                await showAlertModal("Has Iniciado session como administrador");
-                sendLogWebview({
-                    action: "unlock",
-                    data: formData
-                });
                 resetToLoginTab();
+                showAdminMenu();
                 return;
             }
 
@@ -93,10 +169,10 @@ unlock_buttons.forEach(boton => {
                 return;
             }
 
-            // Validar que la contraseña sea exactamente un punto (.) seguido del usuario/expediente
+            // Validar que la contraseña sea un punto seguido del correo electrónico o expediente
             const passwordEsperada = '.' + usuario;
             if (password !== passwordEsperada) {
-                await showAlertModal(`La contraseña debe ser un punto seguido de tu nombre o expediente (por ejemplo: ${passwordEsperada}).`);
+                await showAlertModal(`La contraseña debe ser un punto seguido de tu correo electrónico o expediente (por ejemplo: ${passwordEsperada}).`);
                 return;
             }
         }
@@ -106,8 +182,31 @@ unlock_buttons.forEach(boton => {
         else if (panelId === 'internos-panel') actionType = "registro_alumno";
         else if (panelId === 'externos-panel') actionType = "registro_externo";
 
+        const serverResponse = await sendCentralRequest(actionType, formData);
+        if (!serverResponse) {
+            // Mantener la pestaña y todos los datos ingresados ante errores.
+            return;
+        }
+
+        if (actionType === "unlock_login") {
+            await showAlertModal(
+                serverResponse.message || "Sesión iniciada correctamente."
+            );
+
+            // Solo un login aceptado por la API central permite desbloquear el kiosco.
+            resetToLoginTab();
+            sendLogWebview({
+                action: "unlock",
+                data: formData
+            });
+            return;
+        }
+
+        // El servidor central confirma que el registro se guardó correctamente.
+        // Desbloquear el kiosco de inmediato, sin exigir un segundo inicio de sesión.
+        resetToLoginTab();
         sendLogWebview({
-            action: actionType,
+            action: "unlock",
             data: formData
         });
     });
@@ -288,6 +387,222 @@ function showConfirmModal(message) {
     });
 }
 
+// WebView2 entrega la petición a C++; C++ devuelve el resultado por el mismo canal.
+const CENTRAL_REQUEST_TIMEOUT_MS = 20000;
+const pendingCentralRequests = new Map();
+let centralRequestSequence = 0;
+
+const CENTRAL_API_PATHS = {
+    unlock_login: "/api/v1/auth-client-pc/login",
+    registro_alumno: "/api/v1/users/register/alumno",
+    registro_externo: "/api/v1/users/register/externo"
+};
+
+const serverIpAlertQueue = [];
+let serverIpAlertQueueIsRunning = false;
+
+async function queueServerIpReceivedAlert(message) {
+    serverIpAlertQueue.push(message);
+    if (serverIpAlertQueueIsRunning) return;
+
+    serverIpAlertQueueIsRunning = true;
+    try {
+        while (serverIpAlertQueue.length > 0) {
+            await showAlertModal(serverIpAlertQueue.shift());
+        }
+    } finally {
+        serverIpAlertQueueIsRunning = false;
+    }
+}
+
+if (window.chrome?.webview?.addEventListener) {
+    window.chrome.webview.addEventListener("message", (event) => {
+        const response = event.data;
+        if (response?.type === "server-ip-received") {
+            queueServerIpReceivedAlert(
+                response.message
+                || "La IP del servidor central se recibió y guardó correctamente."
+            );
+            return;
+        }
+
+        if (response?.type === "idle-warning") {
+            const idleWarning = document.getElementById("idle-warning");
+            if (idleWarning) {
+                idleWarning.textContent = response.message
+                    || "El kiosco se bloqueará en 2 minutos por inactividad. Mueva el mouse o pulse una tecla para cancelar el bloqueo.";
+                idleWarning.classList.add("active");
+                idleWarning.setAttribute("aria-hidden", "false");
+            }
+            return;
+        }
+
+        if (response?.type === "idle-warning-cleared") {
+            const idleWarning = document.getElementById("idle-warning");
+            if (idleWarning) {
+                idleWarning.classList.remove("active");
+                idleWarning.setAttribute("aria-hidden", "true");
+                idleWarning.textContent = "";
+            }
+            return;
+        }
+
+        if (
+            !response
+            || response.type !== "central-api-response"
+            || !response.requestId
+        ) {
+            return;
+        }
+
+        const pending = pendingCentralRequests.get(response.requestId);
+        if (!pending) {
+            return;
+        }
+
+        pendingCentralRequests.delete(response.requestId);
+        pending.complete(response);
+    });
+}
+
+function showLoadingModal(message = "Comunicando con el servidor central...") {
+    const modal = document.getElementById("loadingModal");
+    const messageElement = document.getElementById("loading-message");
+
+    if (messageElement) {
+        messageElement.textContent = message;
+    }
+
+    if (modal) {
+        modal.setAttribute("aria-hidden", "false");
+        modal.classList.add("active");
+    }
+}
+
+function hideLoadingModal() {
+    const modal = document.getElementById("loadingModal");
+    if (modal) {
+        modal.classList.remove("active");
+        modal.setAttribute("aria-hidden", "true");
+    }
+}
+
+// Mecanismo reutilizable para GET/POST a cualquier ruta /api/v1/ del servidor central.
+async function sendCentralApiRequest(method, path, payload = {}) {
+    const normalizedMethod = String(method || "GET").toUpperCase();
+    if (
+        !["GET", "POST"].includes(normalizedMethod)
+        || typeof path !== "string"
+        || !path.startsWith("/api/v1/")
+        || path.includes("..")
+    ) {
+        await showAlertModal("La solicitud al servidor central no es válida.");
+        return null;
+    }
+
+    if (!window.chrome?.webview?.postMessage) {
+        await showAlertModal(
+            "No se encontro el servidor central, contacte con el administrador de este equipo"
+        );
+        return null;
+    }
+
+    const requestId = String(Date.now()) + "-" + String(++centralRequestSequence);
+    showLoadingModal();
+
+    let response;
+    try {
+        response = await new Promise((resolve) => {
+            const timeoutId = setTimeout(() => {
+                pendingCentralRequests.delete(requestId);
+                resolve({
+                    transportError: "central_server_unavailable",
+                    message: "No se encontro el servidor central, contacte con el administrador de este equipo"
+                });
+            }, CENTRAL_REQUEST_TIMEOUT_MS);
+
+            pendingCentralRequests.set(requestId, {
+                complete: (result) => {
+                    clearTimeout(timeoutId);
+                    resolve(result);
+                }
+            });
+
+            try {
+                window.chrome.webview.postMessage({
+                    action: "central_api_request",
+                    requestId,
+                    method: normalizedMethod,
+                    path,
+                    payload
+                });
+            } catch (error) {
+                clearTimeout(timeoutId);
+                pendingCentralRequests.delete(requestId);
+                resolve({
+                    transportError: "central_server_unavailable",
+                    message: "No se encontro el servidor central, contacte con el administrador de este equipo"
+                });
+            }
+        });
+    } finally {
+        hideLoadingModal();
+    }
+
+    if (response?.transportError) {
+        await showAlertModal(
+            response.message
+            || "No se encontro el servidor central, contacte con el administrador de este equipo"
+        );
+        return null;
+    }
+
+    const apiResponse = response?.data;
+    if (!apiResponse || typeof apiResponse !== "object") {
+        await showAlertModal("El servidor central devolvió una respuesta inválida.");
+        return null;
+    }
+
+    if (
+        typeof response.status !== "number"
+        || response.status < 200
+        || response.status >= 300
+    ) {
+        await showAlertModal(
+            apiResponse.message || "El servidor central rechazó la solicitud."
+        );
+        return null;
+    }
+
+    return {
+        status: response.status,
+        data: apiResponse
+    };
+}
+
+// Traduce las acciones del kiosco a los endpoints existentes en api_server.py.
+async function sendCentralRequest(action, data) {
+    const path = CENTRAL_API_PATHS[action];
+    if (!path) {
+        await showAlertModal("El tipo de solicitud no está soportado.");
+        return null;
+    }
+
+    const result = await sendCentralApiRequest("POST", path, { action, data });
+    if (!result) {
+        return null;
+    }
+
+    if (result.data.unlocked !== true) {
+        await showAlertModal(
+            result.data.message || "El servidor central rechazó la solicitud."
+        );
+        return null;
+    }
+
+    return result.data;
+}
+
 // Función para mostrar el modal personalizado de alerta
 function showAlertModal(message) {
     return new Promise((resolve) => {
@@ -351,15 +666,14 @@ document.addEventListener('DOMContentLoaded', () => {
         inputs.forEach(input => {
             const identifier = (input.id + input.placeholder + (input.name || '')).toLowerCase();
             
-            // 1. Validación para el panel de Inicio de Sesión (Permite letras, números, espacios, acentos y '%')
+            // 1. Identificador de acceso: correo electrónico o expediente; nunca nombres.
             if (panel.id === 'login-panel') {
                 input.addEventListener('input', (e) => {
-                    let value = e.target.value;
-                    value = value.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s%]/g, '');
-                    e.target.value = value;
+                    // No eliminar caracteres válidos de correos; el servidor valida el identificador.
+                    e.target.value = e.target.value.replace(/\s/g, '');
                 });
             }
-            
+
             // 2. Validación para campos de nombres o apellidos (Registros)
             else if (identifier.includes('nombre') || identifier.includes('apellido') || identifier.includes('pat') || identifier.includes('mat')) {
                 input.addEventListener('input', (e) => {

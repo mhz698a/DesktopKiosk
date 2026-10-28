@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <system_error>
 #include <vector>
+#include <string>
 
 #pragma comment(lib, "shlwapi.lib")
 
@@ -176,3 +177,4 @@ std::string GetEmbeddedResource(int resourceId) {
     // std::string conserva los bytes nulos, por lo que también sirve para PNG.
     return std::string(pData, dataSize);
 }
+

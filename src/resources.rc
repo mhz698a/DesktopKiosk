@@ -10,3 +10,6 @@ IDR_FONDO2_PNG   RCDATA         "../web/imgs/fondo2.png"
 IDR_LOGO_1_PNG   RCDATA         "../web/imgs/logo_1.png"
 IDR_LOGO_2_PNG   RCDATA         "../web/imgs/logo_2.png"
 IDR_MOSAICO_PNG  RCDATA         "../web/imgs/mosaico.png"
+
+IDI_ICON1        ICON           "app_icon.ico"
+

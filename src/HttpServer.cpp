@@ -187,6 +187,7 @@ bool SaveServerControlIp(const std::string& ipAddress)
     ) != FALSE;
 }
 
+
 void ConfigureSocketTimeouts(SOCKET client)
 {
     const DWORD timeout = kSocketTimeoutMs;
@@ -423,6 +424,54 @@ public:
             return;
         }
 
+
+        if (path == "/api/kiosk/pc-control")
+        {
+            const std::string body = GetRequestBody(request);
+            QJsonParseError parseError{};
+            const QJsonDocument json = QJsonDocument::fromJson(
+                QByteArray::fromStdString(body),
+                &parseError
+            );
+
+            if (parseError.error != QJsonParseError::NoError || !json.isObject())
+            {
+                SendResponse(client, BuildResponse(400, "Bad Request", R"({"error":"invalid_json"})"));
+                closesocket(client);
+                return;
+            }
+
+            const QJsonValue actionValue = json.object().value(QStringLiteral("action"));
+            if (!actionValue.isString())
+            {
+                SendResponse(client, BuildResponse(400, "Bad Request", R"({"error":"invalid_action"})"));
+                closesocket(client);
+                return;
+            }
+
+            const std::string requestedAction = actionValue.toString().toStdString();
+            std::string handlerAction;
+            if (requestedAction == "shutdown-pc")
+                handlerAction = "shutdown_pc";
+            else if (requestedAction == "restart-pc")
+                handlerAction = "restart_pc";
+            else
+            {
+                SendResponse(client, BuildResponse(400, "Bad Request", R"({"error":"unsupported_action"})"));
+                closesocket(client);
+                return;
+            }
+
+            if (handler)
+                handler(handlerAction);
+
+            const std::string responseBody =
+                "{\"status\":\"accepted\",\"action\":\"" + requestedAction + "\"}";
+            SendResponse(client, BuildResponse(202, "Accepted", responseBody));
+            closesocket(client);
+            return;
+        }
+
         if (path == "/api/kiosk/receive")
         {
             const std::string body = GetRequestBody(request);
@@ -472,6 +521,9 @@ public:
                 "{\"status\":\"accepted\",\"action\":\"receive\",\"server_control_ip\":\""
                 + serverControlIp + "\"}";
             SendResponse(client, BuildResponse(202, "Accepted", responseBody));
+            // Notificar cada recepción guardada, incluso si la IP es idéntica a la anterior.
+            if (handler)
+                handler("server_ip_received");
             closesocket(client);
             return;
         }
