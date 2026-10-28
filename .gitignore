@@ -85,3 +85,4 @@ __releases__/
 *.evb
 *.pfx
 *.cer
+*.iss
