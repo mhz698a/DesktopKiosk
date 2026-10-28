@@ -83,3 +83,5 @@ __sandbox__/
 __releases__/
 *.tmp
 *.evb
+*.ptx
+*.cer
