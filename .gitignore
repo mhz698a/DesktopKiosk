@@ -81,5 +81,9 @@ $RECYCLE.BIN/
 __docs__/
 __sandbox__/
 __releases__/
+Output/
 *.tmp
 *.evb
+*.pfx
+*.cer
+*.iss
