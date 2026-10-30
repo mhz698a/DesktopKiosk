@@ -21,9 +21,11 @@ WizardStyle=modern
 DisableProgramGroupPage=yes
 
 [Files]
-; CMake genera DesktopKiosk.exe y windeployqt coloca aquí las DLL y plugins de Qt.
-; Se incluye todo el directorio Release para conservar la estructura de ejecución.
-Source: "{#BuildOutputDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,*.ilk,*.lib,*.exp"
+; Inno Setup falla si CMake no ha generado el ejecutable esperado.
+Source: "{#BuildOutputDir}\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+
+; CMake genera las DLL y plugins de Qt junto al EXE. Se conserva la estructura completa.
+Source: "{#BuildOutputDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "{#AppExeName};*.pdb;*.ilk;*.lib;*.exp"
 
 ; Certificado público usado por este cliente.
 Source: "kiosko_cert.cer"; DestDir: "{tmp}"; Flags: deleteafterinstall
