@@ -1,46 +1,62 @@
+#define AppName "DesktopKiosk"
+#define AppVersion "1.0"
+#define AppExeName "DesktopKiosk.exe"
+#define BuildOutputDir "build\\Release"
+
 [Setup]
-AppName=DesktopKiosk
-AppVersion=1.0
-DefaultDirName={commonpf}\DesktopKiosk
-DefaultGroupName=DesktopKiosk
+AppName={#AppName}
+AppVersion={#AppVersion}
+DefaultDirName={autopf}\\{#AppName}
+DefaultGroupName={#AppName}
+UninstallDisplayName={#AppName}
+UninstallDisplayIcon={app}\\{#AppExeName}
 PrivilegesRequired=admin
-OutputDir=.\Output
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
+OutputDir=Output
 OutputBaseFilename=Installer_DesktopKiosk
-Compression=lzma
+Compression=lzma2
 SolidCompression=yes
+WizardStyle=modern
+DisableProgramGroupPage=yes
 
 [Files]
-; 1. Tu ejecutable unificado por Enigma, el cual ya saldrá firmado desde el script .bat
-Source: ".\build\Release\DesktopKioskClient.exe"; DestDir: "{app}"; Flags: ignoreversion
+; CMake genera DesktopKiosk.exe y windeployqt coloca aquí las DLL y plugins de Qt.
+; Se incluye todo el directorio Release para conservar la estructura de ejecución.
+Source: "{#BuildOutputDir}\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,*.ilk,*.lib,*.exp"
 
-; 2. El certificado público (.cer) necesario para instalar la confianza en el kiosk
-Source: ".\kiosko_cert.cer"; DestDir: "{tmp}"; Flags: deleteafterinstall
-
-; 3. Todas las dependencias adicionales recolectadas en la carpeta de distribución
-Source: ".\dist\DesktopKioskCenter\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Certificado público usado por este cliente.
+Source: "kiosko_cert.cer"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 [Icons]
-; Acceso directo en el Menú de Inicio para todos los usuarios
-Name: "{group}\DesktopKiosk"; Filename: "{app}\DesktopKioskClient.exe"
+Name: "{group}\\DesktopKiosk"; Filename: "{app}\\{#AppExeName}"
 
 [Run]
-; Instalar la clave pública en el almacén del sistema
-Filename: "certutil.exe"; Parameters: "-addstore -f ""Root"" ""{tmp}\kiosko_cert.cer"""; StatusMsg: "Configurando certificado de confianza (Raíz)..."; Flags: runhidden
-Filename: "certutil.exe"; Parameters: "-addstore -f ""TrustedPublisher"" ""{tmp}\kiosko_cert.cer"""; StatusMsg: "Configurando certificado de confianza (Editor)..."; Flags: runhidden
+; Instalar el certificado en los almacenes de confianza del equipo.
+Filename: "{sys}\\certutil.exe"; Parameters: "-addstore -f ""Root"" ""{tmp}\\kiosko_cert.cer"""; StatusMsg: "Instalando certificado raíz..."; Flags: runhidden waituntilterminated
+Filename: "{sys}\\certutil.exe"; Parameters: "-addstore -f ""TrustedPublisher"" ""{tmp}\\kiosko_cert.cer"""; StatusMsg: "Instalando certificado de editor..."; Flags: runhidden waituntilterminated
 
-; Configurar la regla del Firewall para tu puerto de red de datos
-Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""DesktopKiosk_In"" dir=in action=allow protocol=TCP localport=7085 program=""{app}\DesktopKioskClient.exe"" enable=yes"; StatusMsg: "Configurando reglas de red en el Firewall..."; Flags: runhidden
+; Permitir conexiones entrantes al servidor REST local del kiosco.
+Filename: "{sys}\\netsh.exe"; Parameters: "advfirewall firewall add rule name=""DesktopKiosk_In"" dir=in action=allow protocol=TCP localport=7085 program=""{app}\\{#AppExeName}"" enable=yes"; StatusMsg: "Configurando el Firewall..."; Flags: runhidden waituntilterminated
 
-; Crear la tarea programada para que el quiosco inicie solo al prender la PC con máximos privilegios
-Filename: "schtasks.exe"; Parameters: "/Create /TN ""DesktopKiosk_Startup"" /TR ""'{app}\DesktopKioskClient.exe'"" /SC ONLOGON /RL HIGHEST /F"; StatusMsg: "Configurando inicio automático del Kiosko..."; Flags: runhidden
+; Ejecutar el cliente al iniciar sesión con el nivel de privilegios más alto.
+Filename: "{sys}\\schtasks.exe"; Parameters: "{code:GetStartupTaskParameters}"; StatusMsg: "Configurando el inicio automático..."; Flags: runhidden waituntilterminated
 
 [UninstallRun]
-; Eliminando la tarea programada
-Filename: "schtasks.exe"; Parameters: "/Delete /TN ""DesktopKiosk_Startup"" /F"; Flags: runhidden; RunOnceId: "RemoveKioskTask"
+Filename: "{sys}\\schtasks.exe"; Parameters: "/Delete /TN ""DesktopKiosk_Startup"" /F"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveKioskTask"
+Filename: "{sys}\\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""DesktopKiosk_In"""; Flags: runhidden waituntilterminated; RunOnceId: "RemoveKioskFirewall"
 
-; Eliminando reglas de firewall
-Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""DesktopKiosk_In"""; Flags: runhidden; RunOnceId: "RemoveKioskFirewall"
+; El sujeto del certificado es exactamente "DesktopKiosk For UAQ".
+Filename: "{sys}\\certutil.exe"; Parameters: "-delstore ""Root"" ""DesktopKiosk For UAQ"""; Flags: runhidden waituntilterminated; RunOnceId: "RemoveKioskRootCert"
+Filename: "{sys}\\certutil.exe"; Parameters: "-delstore ""TrustedPublisher"" ""DesktopKiosk For UAQ"""; Flags: runhidden waituntilterminated; RunOnceId: "RemoveKioskPublisherCert"
 
-; Eliminando certificados del programa
-Filename: "certutil.exe"; Parameters: "-delstore ""Root"" ""DesktopKiosk For UAQ"""; Flags: runhidden; RunOnceId: "RemoveKioskRootCert"
-Filename: "certutil.exe"; Parameters: "-delstore ""TrustedPublisher"" ""DesktopKiosk For UAQ"""; Flags: runhidden; RunOnceId: "RemoveKioskPubCert"
+[Code]
+function GetStartupTaskParameters(Param: string): string;
+begin
+  ; schtasks necesita comillas literales alrededor de la ruta del ejecutable
+  ; almacenada en la acción de la tarea. Los caracteres \" escapan esas
+  ; comillas para el parser de argumentos de Windows.
+  Result := '/Create /TN "DesktopKiosk_Startup" /TR "\\\"' +
+    ExpandConstant('{app}\\DesktopKiosk.exe') +
+    '\\\"" /SC ONLOGON /RL HIGHEST /F';
+end;
