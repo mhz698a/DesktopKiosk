@@ -28,15 +28,15 @@ function resetToLoginTab() {
         clearPanelFields(panel);
     });
 
-    // 2. Cambiar la vista al panel y botón de inicio de sesión
+    // 2. Cambiar la vista al panel y botón de inicio de sesión de forma segura
     const loginPanel = document.getElementById('login-panel');
     const loginBtn = document.querySelector('.tabs-container .tab-btn');
 
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
 
-    if (loginPanel) loginPanel.classList.add('active');
-    if (loginBtn) loginBtn.classList.add('active');
+    loginPanel?.classList.add('active');
+    loginBtn?.classList.add('active');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -63,8 +63,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-    const closeBtn = document.getElementById('close');
-    if (closeBtn) {
+    const clockBtn = document.getElementById('clock');
+    if (clockBtn) {
         const updateClock = () => {
             const now = new Date();
             const options = { 
@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let formattedDate = now.toLocaleDateString('es-ES', options);
             formattedDate = formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
-            closeBtn.textContent = formattedDate;
+            clockBtn.textContent = formattedDate;
         };
 
         updateClock();
@@ -212,12 +212,14 @@ unlock_buttons.forEach(boton => {
     });
 });
 
-
-document.getElementById("close").addEventListener("click", () => {
-    sendLogWebview({
-        action: "close"
+const closeKioskBtn = document.getElementById("close");
+if (closeKioskBtn) {
+    document.getElementById("close").addEventListener("click", () => {
+        sendLogWebview({
+            action: "close"
+        });
     });
-});
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     const selectFacultad = document.getElementById('facultad');
@@ -623,37 +625,27 @@ function showAlertModal(message) {
     });
 }
 
-// Función mejorada para cambiar de pestaña utilizando el modal de confirmación
 async function switchTab(evt, panelId) {
     const currentActivePanel = document.querySelector('.tab-panel.active');
     const targetPanel = document.getElementById(panelId);
 
-    const clickedBtn = evt.currentTarget;
-
+    if (!targetPanel) return;
     if (currentActivePanel === targetPanel) return;
 
-    // Mostrar mensaje de confirmación si hay datos escritos en la pestaña actual
     if (currentActivePanel && hasPanelData(currentActivePanel)) {
-        const confirmar = await showConfirmModal('Tienes datos ingresados sin guardar. ¿Estás seguro de cambiar de pestaña? Se perderá la información.');
-        if (!confirmar) {
-            return;
-        }
+        const msg = 'Tienes datos ingresados sin guardar. ¿Estás seguro de cambiar de pestaña? Se perderá la información.'
+        const confirmar = await showConfirmModal(msg);
+        if (!confirmar) return;
     }
 
-    // Limpiar los campos de la pestaña que se deja
-    if (currentActivePanel) {
-        clearPanelFields(currentActivePanel);
-    }
+    if (currentActivePanel) clearPanelFields(currentActivePanel);
 
-    // Realizar el cambio de paneles y botones
-    const panels = document.querySelectorAll('.tab-panel');
-    panels.forEach(panel => panel.classList.remove('active'));
-
-    const buttons = document.querySelectorAll('.tab-btn');
-    buttons.forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
 
     targetPanel.classList.add('active');
-    clickedBtn.classList.add('active');
+    
+    if (evt?.currentTarget) evt.currentTarget.classList.add('active');
 }
 
 // Validación y formato en tiempo real para campos de nombres y apellidos en registros
