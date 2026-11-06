@@ -568,6 +568,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
                 UnhookWindowsHookEx(g_keyboardHook);
                 g_keyboardHook = nullptr;
             }
+            g_hwnd = nullptr;
             g_httpServer.Stop();
             PostQuitMessage(g_startupExitCode);
             return 0;
