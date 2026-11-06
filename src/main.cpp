@@ -7,12 +7,15 @@
 #include <windows.h>
 
 #include <QApplication>
+#include <QGuiApplication>
+#include <QScreen>
 #include <QString>
 
 #include <chrono>
 #include <cstdio>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 
@@ -28,6 +31,8 @@ namespace
 {
 constexpr UINT_PTR kKioskIdleTimerId = 7085;
 constexpr UINT_PTR kKioskHeartbeatTimerId = 7086;
+constexpr UINT_PTR kWebViewStartupTimerId = 7087;
+constexpr UINT kWebViewStartupTimeoutMs = 30000;
 constexpr DWORD kIdleWarningMilliseconds = 180000;
 constexpr DWORD kIdleLockMilliseconds = 300000;
 bool g_idleWarningShown = false;
@@ -150,6 +155,55 @@ LRESULT CALLBACK KioskKeyboardHookProc(int code, WPARAM wParam, LPARAM lParam)
 }
 
 static HttpServer g_httpServer;
+static int g_startupExitCode = 0;
+static bool g_kioskRuntimeStarted = false;
+
+void StartKioskRuntime()
+{
+    if (g_kioskRuntimeStarted || g_hwnd == nullptr)
+        return;
+
+    g_kioskRuntimeStarted = true;
+    KillTimer(g_hwnd, kWebViewStartupTimerId);
+
+    if (SetTimer(g_hwnd, kKioskIdleTimerId, 1000, nullptr) == 0)
+        OutputDebugStringW(L\"[KIOSK] No se pudo iniciar el temporizador de inactividad.\\n\");
+    if (SetTimer(g_hwnd, kKioskHeartbeatTimerId, 1000, nullptr) == 0)
+        OutputDebugStringW(L\"[HEARTBEAT] No se pudo iniciar el temporizador de heartbeat.\\n\");
+
+    if (!g_httpServer.Start(7085, [](const std::string& action, const std::string& payload)
+    {
+        if (action == \"unlock\")
+            PostMessageW(g_hwnd, WM_KIOSK_UNLOCK, 0, 0);
+        else if (action == \"lock\")
+            PostMessageW(g_hwnd, WM_KIOSK_LOCK, 0, 0);
+        else if (action == \"close\")
+            PostMessageW(g_hwnd, WM_KIOSK_CLOSE, 0, 0);
+        else if (action == \"server_ip_received\")
+            PostMessageW(g_hwnd, WM_KIOSK_SERVER_IP_RECEIVED, 0, 0);
+        else if (action == \"assigned_session\")
+        {
+            auto* assignedUser = new std::wstring(
+                QString::fromUtf8(payload.c_str()).toStdWString()
+            );
+            if (!PostMessageW(
+                g_hwnd,
+                WM_KIOSK_ASSIGNED_SESSION,
+                0,
+                reinterpret_cast<LPARAM>(assignedUser)))
+            {
+                delete assignedUser;
+            }
+        }
+        else if (action == \"shutdown_pc\")
+            PostMessageW(g_hwnd, WM_KIOSK_SHUTDOWN_PC, 0, 0);
+        else if (action == \"restart_pc\")
+            PostMessageW(g_hwnd, WM_KIOSK_RESTART_PC, 0, 0);
+    }))
+    {
+        OutputDebugStringW(L\"[HTTP] Servidor REST no iniciado.\\n\");
+    }
+}
 
 std::wstring GetKioskTimeString()
 {
@@ -344,6 +398,33 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 {
     switch (message)
     {
+        case WM_KIOSK_WEBVIEW_READY:
+            StartKioskRuntime();
+            return 0;
+
+        case WM_KIOSK_STARTUP_FAILED:
+        {
+            KillTimer(hwnd, kWebViewStartupTimerId);
+            g_startupExitCode = 1;
+
+            auto* failureMessage = reinterpret_cast<std::wstring*>(lParam);
+            const wchar_t* displayedMessage = failureMessage != nullptr
+                ? failureMessage->c_str()
+                : L"DesktopKiosk no pudo inicializar WebView2. La aplicación se cerrará.";
+
+            MessageBoxW(
+                hwnd,
+                displayedMessage,
+                L"Error de inicio - DesktopKiosk",
+                MB_OK | MB_ICONERROR
+            );
+            delete failureMessage;
+
+            if (IsWindow(hwnd))
+                DestroyWindow(hwnd);
+            return 0;
+        }
+
         case WM_KIOSK_UNLOCK:
             UnlockKiosk();
             return 0;
@@ -393,6 +474,22 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
             return 0;
 
         case WM_TIMER:
+            if (wParam == kWebViewStartupTimerId)
+            {
+                KillTimer(hwnd, kWebViewStartupTimerId);
+                g_startupExitCode = 1;
+                MessageBoxW(
+                    hwnd,
+                    L"WebView2 no terminó de inicializarse dentro de 30 segundos. "
+                    L"Comprueba que Microsoft Edge WebView2 Runtime esté instalado y funcionando. "
+                    L"DesktopKiosk se cerrará.",
+                    L"Tiempo de espera agotado - DesktopKiosk",
+                    MB_OK | MB_ICONERROR
+                );
+                DestroyWindow(hwnd);
+                return 0;
+            }
+
             if (wParam == kKioskIdleTimerId)
             {
                 if (g_kioskState != KioskState::Unlocked)
@@ -463,13 +560,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
             return 0;
 
         case WM_DESTROY:
+            KillTimer(hwnd, kWebViewStartupTimerId);
+            KillTimer(hwnd, kKioskIdleTimerId);
+            KillTimer(hwnd, kKioskHeartbeatTimerId);
             if (g_keyboardHook)
             {
                 UnhookWindowsHookEx(g_keyboardHook);
                 g_keyboardHook = nullptr;
             }
             g_httpServer.Stop();
-            PostQuitMessage(0);
+            PostQuitMessage(g_startupExitCode);
             return 0;
     }
 
@@ -510,8 +610,39 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
     int qtArgc = 1;
     char appName[] = "DesktopKiosk";
     char* qtArgv[] = { appName, nullptr };
-    QApplication qtApp(qtArgc, qtArgv);
-    qtApp.setApplicationName(QStringLiteral("DesktopKiosk"));
+    std::unique_ptr<QApplication> qtApp;
+    try
+    {
+        qtApp = std::make_unique<QApplication>(qtArgc, qtArgv);
+    }
+    catch (...)
+    {
+        MessageBoxW(
+            nullptr,
+            L"Qt no pudo inicializar la aplicación gráfica. DesktopKiosk se cerrará.",
+            L"Error de inicialización de Qt",
+            MB_OK | MB_ICONERROR
+        );
+        CloseHandle(singleInstanceMutex);
+        return 1;
+    }
+
+    if (QApplication::instance() != qtApp.get()
+        || QGuiApplication::platformName().isEmpty()
+        || QGuiApplication::primaryScreen() == nullptr)
+    {
+        MessageBoxW(
+            nullptr,
+            L"Qt no pudo inicializar correctamente la plataforma gráfica o detectar una pantalla. "
+            L"DesktopKiosk se cerrará.",
+            L"Error de inicialización de Qt",
+            MB_OK | MB_ICONERROR
+        );
+        CloseHandle(singleInstanceMutex);
+        return 1;
+    }
+
+    qtApp->setApplicationName(QStringLiteral("DesktopKiosk"));
     QApplication::setQuitOnLastWindowClosed(false);
 
     const wchar_t CLASS_NAME[] = L"DesktopKioskWindow";
@@ -523,16 +654,28 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
     windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
 
     if (!RegisterClassW(&windowClass))
+    {
+        const DWORD errorCode = GetLastError();
+        wchar_t message[256]{};
+        swprintf_s(
+            message,
+            L"No se pudo registrar la ventana de DesktopKiosk (error %lu).",
+            errorCode
+        );
+        MessageBoxW(nullptr, message, L"Error de inicio - DesktopKiosk", MB_OK | MB_ICONERROR);
+        CloseHandle(singleInstanceMutex);
         return 1;
+    }
 
     if (!RegisterSessionWindowClass(hInstance))
     {
         MessageBoxW(
             nullptr,
-            L"No se pudo registrar la clase de ventana de sesión.",
-            L"DesktopKiosk",
-            MB_ICONERROR
+            L"Qt no pudo preparar la ventana de sesión. DesktopKiosk se cerrará.",
+            L"Error de inicialización de Qt",
+            MB_OK | MB_ICONERROR
         );
+        CloseHandle(singleInstanceMutex);
         return 1;
     }
 
@@ -550,7 +693,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
 
     if (!g_hwnd)
     {
-        MessageBoxW(nullptr, L"No se pudo crear la ventana.", L"DesktopKiosk", MB_ICONERROR);
+        MessageBoxW(nullptr, L"No se pudo crear la ventana principal. DesktopKiosk se cerrará.", L"DesktopKiosk", MB_OK | MB_ICONERROR);
+        CloseHandle(singleInstanceMutex);
         return 1;
     }
 
@@ -578,44 +722,27 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
         return 1;
     }
 
-    InitializeWebView2(g_hwnd);
-    SetTimer(g_hwnd, kKioskIdleTimerId, 1000, nullptr);
-    SetTimer(g_hwnd, kKioskHeartbeatTimerId, 1000, nullptr);
-
-    if (!g_httpServer.Start(7085, [](const std::string& action, const std::string& payload)
+    if (SetTimer(g_hwnd, kWebViewStartupTimerId, kWebViewStartupTimeoutMs, nullptr) == 0)
     {
-        if (action == "unlock")
-            PostMessageW(g_hwnd, WM_KIOSK_UNLOCK, 0, 0);
-        else if (action == "lock")
-            PostMessageW(g_hwnd, WM_KIOSK_LOCK, 0, 0);
-        else if (action == "close")
-            PostMessageW(g_hwnd, WM_KIOSK_CLOSE, 0, 0);
-        else if (action == "server_ip_received")
-            PostMessageW(g_hwnd, WM_KIOSK_SERVER_IP_RECEIVED, 0, 0);
-        else if (action == "assigned_session")
-        {
-            auto* assignedUser = new std::wstring(
-                QString::fromUtf8(payload.c_str()).toStdWString()
-            );
-            if (!PostMessageW(
-                g_hwnd,
-                WM_KIOSK_ASSIGNED_SESSION,
-                0,
-                reinterpret_cast<LPARAM>(assignedUser)))
-            {
-                delete assignedUser;
-            }
-        }
-        else if (action == "shutdown_pc")
-            PostMessageW(g_hwnd, WM_KIOSK_SHUTDOWN_PC, 0, 0);
-        else if (action == "restart_pc")
-            PostMessageW(g_hwnd, WM_KIOSK_RESTART_PC, 0, 0);
-    }))
-    {
-        OutputDebugStringW(L"[HTTP] Servidor REST no iniciado.\n");
+        MessageBoxW(
+            g_hwnd,
+            L"No se pudo iniciar el temporizador de seguridad de arranque. DesktopKiosk se cerrará.",
+            L"Error de inicio - DesktopKiosk",
+            MB_OK | MB_ICONERROR
+        );
+        DestroyWindow(g_hwnd);
+        ShutdownWebView2();
+        CloseHandle(singleInstanceMutex);
+        return 1;
     }
 
-    const int exitCode = qtApp.exec();
+    // La aplicación no activa el kiosco, el heartbeat ni la API hasta que
+    // WebView2 confirme que la página inicial terminó de cargar correctamente.
+    InitializeWebView2(g_hwnd);
+
+    const int eventLoopExitCode = qtApp->exec();
+    ShutdownWebView2();
     CloseHandle(singleInstanceMutex);
-    return exitCode;
+
+    return g_startupExitCode != 0 ? g_startupExitCode : eventLoopExitCode;
 }
