@@ -5,6 +5,9 @@
 // Inicializa el motor WebView2 en la ventana indicada
 void InitializeWebView2(HWND hwnd);
 
+// Libera los objetos COM/WebView2 desde el hilo STA que los inicializó.
+void ShutdownWebView2();
+
 // Redimensiona la vista de WebView2 al cambiar el tamaño de la ventana
 void ResizeWebView();
 
