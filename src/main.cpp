@@ -167,21 +167,21 @@ void StartKioskRuntime()
     KillTimer(g_hwnd, kWebViewStartupTimerId);
 
     if (SetTimer(g_hwnd, kKioskIdleTimerId, 1000, nullptr) == 0)
-        OutputDebugStringW(L\"[KIOSK] No se pudo iniciar el temporizador de inactividad.\\n\");
+        OutputDebugStringW(L"[KIOSK] No se pudo iniciar el temporizador de inactividad.\n");
     if (SetTimer(g_hwnd, kKioskHeartbeatTimerId, 1000, nullptr) == 0)
-        OutputDebugStringW(L\"[HEARTBEAT] No se pudo iniciar el temporizador de heartbeat.\\n\");
+        OutputDebugStringW(L"[HEARTBEAT] No se pudo iniciar el temporizador de heartbeat.\n");
 
     if (!g_httpServer.Start(7085, [](const std::string& action, const std::string& payload)
     {
-        if (action == \"unlock\")
+        if (action == "unlock")
             PostMessageW(g_hwnd, WM_KIOSK_UNLOCK, 0, 0);
-        else if (action == \"lock\")
+        else if (action == "lock")
             PostMessageW(g_hwnd, WM_KIOSK_LOCK, 0, 0);
-        else if (action == \"close\")
+        else if (action == "close")
             PostMessageW(g_hwnd, WM_KIOSK_CLOSE, 0, 0);
-        else if (action == \"server_ip_received\")
+        else if (action == "server_ip_received")
             PostMessageW(g_hwnd, WM_KIOSK_SERVER_IP_RECEIVED, 0, 0);
-        else if (action == \"assigned_session\")
+        else if (action == "assigned_session")
         {
             auto* assignedUser = new std::wstring(
                 QString::fromUtf8(payload.c_str()).toStdWString()
@@ -195,13 +195,13 @@ void StartKioskRuntime()
                 delete assignedUser;
             }
         }
-        else if (action == \"shutdown_pc\")
+        else if (action == "shutdown_pc")
             PostMessageW(g_hwnd, WM_KIOSK_SHUTDOWN_PC, 0, 0);
-        else if (action == \"restart_pc\")
+        else if (action == "restart_pc")
             PostMessageW(g_hwnd, WM_KIOSK_RESTART_PC, 0, 0);
     }))
     {
-        OutputDebugStringW(L\"[HTTP] Servidor REST no iniciado.\\n\");
+        OutputDebugStringW(L"[HTTP] Servidor REST no iniciado.\n");
     }
 }
 
@@ -717,8 +717,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
             L"DesktopKiosk no puede iniciar en modo kiosco.",
             errorCode
         );
-        MessageBoxW(g_hwnd, errorMessage, L"DesktopKiosk", MB_ICONERROR);
+        MessageBoxW(g_hwnd, errorMessage, L"DesktopKiosk", MB_OK | MB_ICONERROR);
         DestroyWindow(g_hwnd);
+        CloseHandle(singleInstanceMutex);
         return 1;
     }
 
