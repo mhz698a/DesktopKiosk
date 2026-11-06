@@ -976,7 +976,7 @@ void InitializeWebView2(HWND hwnd)
                                             if (g_pageReady)
                                             {
                                                 OutputDebugStringW(
-                                                    L"[WEBVIEW2] Falló una navegación posterior al inicio.\\n"
+                                                    L"[WEBVIEW2] Falló una navegación posterior al inicio.\n"
                                                 );
                                                 return S_OK;
                                             }
