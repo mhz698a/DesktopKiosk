@@ -2,6 +2,8 @@
 
 #include <windows.h>
 
+#include <string>
+
 // Verifica que QApplication ya esté inicializada para crear widgets Qt.
 bool RegisterSessionWindowClass(HINSTANCE hInstance);
 
