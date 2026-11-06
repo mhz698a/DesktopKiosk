@@ -16,6 +16,14 @@ Los nombres de los encabezados HTTP se procesan sin distinguir mayúsculas y min
 
 No se acepta desbloqueo anónimo.
 
+## Inicialización segura del kiosco
+
+DesktopKiosk no activa el heartbeat ni el servidor HTTP hasta que WebView2 crea el entorno y el controlador, registra sus eventos y termina de cargar correctamente la página inicial.
+
+Si Qt no puede crear la aplicación gráfica, detectar una pantalla o preparar la ventana de sesión, el proceso termina con código de error. Si WebView2 devuelve un HRESULT fallido, la navegación inicial falla o el entorno no responde, se muestra un diagnóstico y se destruye la ventana principal para finalizar el proceso. La inicialización de WebView2 tiene un límite de 30 segundos; al vencer, el kiosco también se cierra con código de error.
+
+Los objetos COM de WebView2 se liberan y `CoUninitialize` se ejecuta en el mismo hilo STA que inicializó COM. Los errores de navegaciones posteriores al arranque se registran en el diagnóstico y no se confunden con un fallo de inicialización.
+
 ## Protección del servidor HTTP
 
 El procesamiento de clientes utiliza un conjunto fijo de **8 workers** y una cola limitada a **32 conexiones pendientes**. Cada socket cliente tiene un timeout de lectura y escritura de **5 segundos**.
