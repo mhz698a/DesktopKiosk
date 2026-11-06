@@ -973,6 +973,14 @@ void InitializeWebView2(HWND hwnd)
                                             COREWEBVIEW2_WEB_ERROR_STATUS webError{};
                                             const HRESULT statusResult =
                                                 args->get_WebErrorStatus(&webError);
+                                            if (g_pageReady)
+                                            {
+                                                OutputDebugStringW(
+                                                    L"[WEBVIEW2] Falló una navegación posterior al inicio.\\n"
+                                                );
+                                                return S_OK;
+                                            }
+
                                             wchar_t message[384]{};
                                             if (SUCCEEDED(statusResult))
                                             {
@@ -996,14 +1004,17 @@ void InitializeWebView2(HWND hwnd)
                                             return E_FAIL;
                                         }
 
-                                        g_pageReady = true;
-                                        if (!PostMessageW(hwnd, WM_KIOSK_WEBVIEW_READY, 0, 0))
+                                        if (!g_pageReady)
                                         {
-                                            PostStartupFailure(
-                                                hwnd,
-                                                L"WebView2 cargó la página, pero no se pudo notificar al proceso principal."
-                                            );
-                                            return HRESULT_FROM_WIN32(GetLastError());
+                                            g_pageReady = true;
+                                            if (!PostMessageW(hwnd, WM_KIOSK_WEBVIEW_READY, 0, 0))
+                                            {
+                                                PostStartupFailure(
+                                                    hwnd,
+                                                    L"WebView2 cargó la página, pero no se pudo notificar al proceso principal."
+                                                );
+                                                return HRESULT_FROM_WIN32(GetLastError());
+                                            }
                                         }
 
                                         return S_OK;
