@@ -45,6 +45,33 @@ Invoke-WebRequest -Method POST -Uri "http://127.0.0.1:7085/api/kiosk/unlock" -He
 
 Para control remoto, configura `DESKTOPKIOSK_HTTP_BIND` si quieres limitar la interfaz. La regla de entrada correspondiente debe instalarse desde el instalador y limitar el acceso a los equipos autorizados.
 
+### Iniciar una sesión asignada por el administrador
+
+DesktopKioskCenter puede asignar una sesión a un alumno interno o a una persona de público en general mediante:
+
+`POST /api/kiosk/assigned-session`
+
+La ruta requiere el mismo encabezado Bearer que el resto de las peticiones POST:
+
+~~~http
+POST /api/kiosk/assigned-session
+Authorization: Bearer UAQinformatizacion7085
+Content-Type: application/json
+
+{
+  "action": "assign_session",
+  "data": {
+    "display_name": "Andrea López",
+    "identifier": "andrea@example.com",
+    "user_type": "Público en general"
+  }
+}
+~~~
+
+El servidor valida la acción, el nombre, el identificador y que `user_type` sea exactamente `Alumno interno` o `Público en general`. Si los datos son válidos, devuelve `202 Accepted`, desbloquea el kiosco e inicia una sesión nueva atribuida a `display_name`. El panel flotante **SESIÓN ACTIVA** muestra ese nombre en lugar del usuario Windows local y reinicia el contador de sesión. Si ya existía otra sesión, la asignación la reemplaza y reinicia su tiempo.
+
+Un JSON mal formado, una identidad incompleta o un tipo no admitido devuelve `400 Bad Request`; un token incorrecto devuelve `401 Unauthorized`. Este endpoint está destinado a la red administrativa confiable del Centro y no sustituye un sistema de contraseñas o autenticación individual.
+
 ## WebView2
 
 Los mensajes `postMessage` se validan contra:
