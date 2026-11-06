@@ -7,6 +7,7 @@
 #include <windows.h>
 
 #include <QApplication>
+#include <QString>
 
 #include <chrono>
 #include <cstdio>
@@ -185,6 +186,27 @@ void UnlockKiosk()
         GetWindowLongPtrW(g_hwnd, GWLP_HINSTANCE)));
 }
 
+void UnlockKioskForUser(const std::wstring& assignedUser)
+{
+    if (assignedUser.empty())
+        return;
+
+    g_kioskState = KioskState::Unlocked;
+    g_sessionStartedAt = std::chrono::steady_clock::now();
+    g_idleWarningShown = false;
+    DispatchIdleWarningCleared();
+    OutputDebugStringW(L"[KIOSK] Sesión asignada desde DesktopKioskCenter.\\n");
+
+    DestroySessionWindow();
+    ShowWindow(g_hwnd, SW_HIDE);
+
+    CreateSessionWindow(
+        reinterpret_cast<HINSTANCE>(
+            GetWindowLongPtrW(g_hwnd, GWLP_HINSTANCE)),
+        assignedUser
+    );
+}
+
 void LockKiosk()
 {
     if (g_kioskState == KioskState::Locked)
@@ -325,6 +347,17 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
         case WM_KIOSK_UNLOCK:
             UnlockKiosk();
             return 0;
+
+        case WM_KIOSK_ASSIGNED_SESSION:
+        {
+            auto* assignedUser = reinterpret_cast<std::wstring*>(lParam);
+            if (assignedUser != nullptr)
+            {
+                UnlockKioskForUser(*assignedUser);
+                delete assignedUser;
+            }
+            return 0;
+        }
 
         case WM_KIOSK_LOCK:
             LockKiosk();
@@ -549,7 +582,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
     SetTimer(g_hwnd, kKioskIdleTimerId, 1000, nullptr);
     SetTimer(g_hwnd, kKioskHeartbeatTimerId, 1000, nullptr);
 
-    if (!g_httpServer.Start(7085, [](const std::string& action)
+    if (!g_httpServer.Start(7085, [](const std::string& action, const std::string& payload)
     {
         if (action == "unlock")
             PostMessageW(g_hwnd, WM_KIOSK_UNLOCK, 0, 0);
@@ -559,6 +592,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
             PostMessageW(g_hwnd, WM_KIOSK_CLOSE, 0, 0);
         else if (action == "server_ip_received")
             PostMessageW(g_hwnd, WM_KIOSK_SERVER_IP_RECEIVED, 0, 0);
+        else if (action == "assigned_session")
+        {
+            auto* assignedUser = new std::wstring(
+                QString::fromUtf8(payload.c_str()).toStdWString()
+            );
+            if (!PostMessageW(
+                g_hwnd,
+                WM_KIOSK_ASSIGNED_SESSION,
+                0,
+                reinterpret_cast<LPARAM>(assignedUser)))
+            {
+                delete assignedUser;
+            }
+        }
         else if (action == "shutdown_pc")
             PostMessageW(g_hwnd, WM_KIOSK_SHUTDOWN_PC, 0, 0);
         else if (action == "restart_pc")
