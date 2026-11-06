@@ -38,6 +38,7 @@ HWND g_mainHwnd = nullptr;
 ComPtr<ICoreWebView2Controller> g_controller = nullptr;
 ComPtr<ICoreWebView2> g_webview = nullptr;
 bool g_pageReady = false;
+bool g_comInitialized = false;
 unsigned int g_pendingServerIpReceived = 0;
 int g_pendingIdleWarningState = 0; // 0 = ninguno, 1 = mostrar, 2 = ocultar
 std::atomic<bool> g_heartbeatInFlight{false};
@@ -670,57 +671,157 @@ void DispatchIdleWarningCleared()
     g_webview->PostWebMessageAsJson(message.c_str());
 }
 
+namespace
+{
+void PostStartupFailure(HWND hwnd, const std::wstring& message) noexcept
+{
+    if (!IsWindow(hwnd))
+        return;
+
+    auto* payload = new (std::nothrow) std::wstring(message);
+    if (payload == nullptr)
+    {
+        PostMessageW(hwnd, WM_KIOSK_STARTUP_FAILED, 0, 0);
+        return;
+    }
+
+    if (!PostMessageW(
+            hwnd,
+            WM_KIOSK_STARTUP_FAILED,
+            0,
+            reinterpret_cast<LPARAM>(payload)))
+    {
+        delete payload;
+    }
+}
+
+std::wstring FormatWebViewFailure(const wchar_t* stage, HRESULT result)
+{
+    wchar_t message[384]{};
+    swprintf_s(
+        message,
+        L"%ls. Código HRESULT: 0x%08lX",
+        stage,
+        static_cast<unsigned long>(result)
+    );
+    return message;
+}
+}
+
+void ShutdownWebView2()
+{
+    g_pageReady = false;
+    g_pendingServerIpReceived = 0;
+    g_pendingIdleWarningState = 0;
+
+    // Los objetos WebView2 se liberan en el mismo hilo STA en que fueron creados.
+    g_webview.Reset();
+    g_controller.Reset();
+    g_mainHwnd = nullptr;
+
+    if (g_comInitialized)
+    {
+        g_comInitialized = false;
+        CoUninitialize();
+    }
+}
+
 void InitializeWebView2(HWND hwnd)
 {
     g_mainHwnd = hwnd;
+    g_pageReady = false;
 
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-
-    wchar_t tempPath[MAX_PATH];
-    DWORD pathLen = GetTempPathW(MAX_PATH, tempPath);
-
-    std::wstring userDataFolder;
-    if (pathLen > 0 && pathLen < MAX_PATH)
+    if (!IsWindow(hwnd))
     {
-        userDataFolder = std::wstring(tempPath) + L"DesktopKiosk_WebView2";
+        PostStartupFailure(hwnd, L"No se pudo iniciar WebView2 porque la ventana principal no existe.");
+        return;
     }
 
-    HRESULT result = CreateCoreWebView2EnvironmentWithOptions(
+    const HRESULT comResult = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    if (FAILED(comResult))
+    {
+        PostStartupFailure(
+            hwnd,
+            FormatWebViewFailure(
+                L"No se pudo inicializar COM en el apartamento STA requerido por WebView2",
+                comResult
+            )
+        );
+        return;
+    }
+    g_comInitialized = true;
+
+    wchar_t tempPath[MAX_PATH]{};
+    const DWORD pathLen = GetTempPathW(MAX_PATH, tempPath);
+
+    std::wstring userDataFolder;
+    if (pathLen == 0 || pathLen >= MAX_PATH)
+    {
+        PostStartupFailure(
+            hwnd,
+            L"No se pudo determinar una carpeta temporal válida para los datos de WebView2."
+        );
+        return;
+    }
+
+    userDataFolder = std::wstring(tempPath) + L"DesktopKiosk_WebView2";
+
+    const HRESULT environmentResult = CreateCoreWebView2EnvironmentWithOptions(
         nullptr,
-        userDataFolder.empty() ? nullptr : userDataFolder.c_str(),
+        userDataFolder.c_str(),
         nullptr,
         Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
             [hwnd](HRESULT result, ICoreWebView2Environment* environment) -> HRESULT
             {
-                if (FAILED(result))
+                if (!IsWindow(hwnd))
+                    return E_ABORT;
+
+                if (FAILED(result) || environment == nullptr)
                 {
-                    wchar_t errMsg[256];
-                    swprintf_s(errMsg, L"No se pudo inicializar WebView2. Codigo: 0x%08X", result);
-                    MessageBoxW(hwnd, errMsg, L"DesktopKiosk", MB_ICONERROR);
-                    return result;
+                    const HRESULT failure = FAILED(result) ? result : E_POINTER;
+                    PostStartupFailure(
+                        hwnd,
+                        FormatWebViewFailure(
+                            L"No se pudo inicializar el entorno de Microsoft Edge WebView2",
+                            failure
+                        )
+                    );
+                    return failure;
                 }
 
                 return environment->CreateCoreWebView2Controller(
                     hwnd,
                     Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-                        [hwnd](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT
+                        [hwnd](HRESULT controllerResult, ICoreWebView2Controller* controller) -> HRESULT
                         {
-                            if (FAILED(result))
+                            if (!IsWindow(hwnd))
+                                return E_ABORT;
+
+                            if (FAILED(controllerResult) || controller == nullptr)
                             {
-                                wchar_t errMsg[256];
-                                swprintf_s(errMsg, L"No se pudo crear el controlador de WebView2. Codigo: 0x%08X", result);
-                                MessageBoxW(hwnd, errMsg, L"DesktopKiosk", MB_ICONERROR);
-                                return result;
+                                const HRESULT failure = FAILED(controllerResult)
+                                    ? controllerResult
+                                    : E_POINTER;
+                                PostStartupFailure(
+                                    hwnd,
+                                    FormatWebViewFailure(
+                                        L"No se pudo crear el controlador de WebView2",
+                                        failure
+                                    )
+                                );
+                                return failure;
                             }
 
                             g_controller = controller;
 
-                            // Evita que Alt+F4 cierre la aplicación desde WebView2.
-                            HRESULT acceleratorResult = controller->add_AcceleratorKeyPressed(
+                            HRESULT hr = controller->add_AcceleratorKeyPressed(
                                 Callback<ICoreWebView2AcceleratorKeyPressedEventHandler>(
                                     [](ICoreWebView2Controller*,
                                        ICoreWebView2AcceleratorKeyPressedEventArgs* args) -> HRESULT
                                     {
+                                        if (args == nullptr)
+                                            return E_POINTER;
+
                                         COREWEBVIEW2_KEY_EVENT_KIND eventKind{};
                                         UINT virtualKey = 0;
                                         INT keyEventLParam = 0;
@@ -740,78 +841,250 @@ void InitializeWebView2(HWND hwnd)
                                 .Get(),
                                 nullptr
                             );
-                            if (FAILED(acceleratorResult))
-                                return acceleratorResult;
-
-                            HRESULT hr = controller->get_CoreWebView2(&g_webview);
                             if (FAILED(hr))
-                                return hr;
-
-                            ComPtr<ICoreWebView2Settings> settings;
-                            if (SUCCEEDED(g_webview->get_Settings(&settings)) && settings)
                             {
-                                // La aplicación funciona como kiosco: no exponer DevTools
-                                // ni el menú contextual predeterminado de WebView2.
-                                settings->put_AreDevToolsEnabled(FALSE);
-                                settings->put_AreDefaultContextMenusEnabled(FALSE);
+                                PostStartupFailure(
+                                    hwnd,
+                                    FormatWebViewFailure(
+                                        L"No se pudo registrar el control de atajos de WebView2",
+                                        hr
+                                    )
+                                );
+                                return hr;
                             }
 
-                            ResizeWebView();
+                            hr = controller->get_CoreWebView2(&g_webview);
+                            if (FAILED(hr) || !g_webview)
+                            {
+                                const HRESULT failure = FAILED(hr) ? hr : E_POINTER;
+                                PostStartupFailure(
+                                    hwnd,
+                                    FormatWebViewFailure(
+                                        L"No se pudo obtener la instancia principal de WebView2",
+                                        failure
+                                    )
+                                );
+                                return failure;
+                            }
 
-                            g_webview->add_NavigationCompleted(
+                            ComPtr<ICoreWebView2Settings> settings;
+                            hr = g_webview->get_Settings(&settings);
+                            if (FAILED(hr) || !settings)
+                            {
+                                const HRESULT failure = FAILED(hr) ? hr : E_POINTER;
+                                PostStartupFailure(
+                                    hwnd,
+                                    FormatWebViewFailure(
+                                        L"No se pudo obtener la configuración de WebView2",
+                                        failure
+                                    )
+                                );
+                                return failure;
+                            }
+
+                            hr = settings->put_AreDevToolsEnabled(FALSE);
+                            if (FAILED(hr))
+                            {
+                                PostStartupFailure(
+                                    hwnd,
+                                    FormatWebViewFailure(
+                                        L"No se pudieron deshabilitar las herramientas de desarrollo de WebView2",
+                                        hr
+                                    )
+                                );
+                                return hr;
+                            }
+
+                            hr = settings->put_AreDefaultContextMenusEnabled(FALSE);
+                            if (FAILED(hr))
+                            {
+                                PostStartupFailure(
+                                    hwnd,
+                                    FormatWebViewFailure(
+                                        L"No se pudo deshabilitar el menú contextual de WebView2",
+                                        hr
+                                    )
+                                );
+                                return hr;
+                            }
+
+                            RECT bounds{};
+                            if (!GetClientRect(hwnd, &bounds))
+                            {
+                                const HRESULT failure = HRESULT_FROM_WIN32(GetLastError());
+                                PostStartupFailure(
+                                    hwnd,
+                                    FormatWebViewFailure(
+                                        L"No se pudo obtener el área cliente de la ventana de DesktopKiosk",
+                                        failure
+                                    )
+                                );
+                                return failure;
+                            }
+
+                            hr = controller->put_Bounds(bounds);
+                            if (FAILED(hr))
+                            {
+                                PostStartupFailure(
+                                    hwnd,
+                                    FormatWebViewFailure(
+                                        L"No se pudo ajustar WebView2 al tamaño de la ventana",
+                                        hr
+                                    )
+                                );
+                                return hr;
+                            }
+
+                            hr = g_webview->add_NavigationCompleted(
                                 Callback<ICoreWebView2NavigationCompletedEventHandler>(
-                                    [](ICoreWebView2*, ICoreWebView2NavigationCompletedEventArgs* args) -> HRESULT
+                                    [hwnd](ICoreWebView2*,
+                                           ICoreWebView2NavigationCompletedEventArgs* args) -> HRESULT
                                     {
-                                        BOOL navigationSucceeded = FALSE;
-                                        if (SUCCEEDED(args->get_IsSuccess(&navigationSucceeded))
-                                            && navigationSucceeded)
+                                        if (!IsWindow(hwnd))
+                                            return E_ABORT;
+
+                                        if (args == nullptr)
                                         {
-                                            g_pageReady = true;
-
-                                            while (g_pendingServerIpReceived > 0)
-                                            {
-                                                --g_pendingServerIpReceived;
-                                                DispatchServerIpReceived();
-                                            }
-
-                                            const int pendingIdleState = g_pendingIdleWarningState;
-                                            if (pendingIdleState == 1)
-                                                DispatchIdleWarning();
-                                            else if (pendingIdleState == 2)
-                                                DispatchIdleWarningCleared();
+                                            PostStartupFailure(
+                                                hwnd,
+                                                L"WebView2 notificó una navegación sin información de resultado."
+                                            );
+                                            return E_POINTER;
                                         }
+
+                                        BOOL navigationSucceeded = FALSE;
+                                        HRESULT navigationResult =
+                                            args->get_IsSuccess(&navigationSucceeded);
+                                        if (FAILED(navigationResult))
+                                        {
+                                            PostStartupFailure(
+                                                hwnd,
+                                                FormatWebViewFailure(
+                                                    L"No se pudo comprobar el resultado de la navegación inicial de WebView2",
+                                                    navigationResult
+                                                )
+                                            );
+                                            return navigationResult;
+                                        }
+
+                                        if (!navigationSucceeded)
+                                        {
+                                            COREWEBVIEW2_WEB_ERROR_STATUS webError{};
+                                            const HRESULT statusResult =
+                                                args->get_WebErrorStatus(&webError);
+                                            wchar_t message[384]{};
+                                            if (SUCCEEDED(statusResult))
+                                            {
+                                                swprintf_s(
+                                                    message,
+                                                    L"WebView2 no pudo cargar la página inicial. "
+                                                    L"Estado de navegación: %u.",
+                                                    static_cast<unsigned int>(webError)
+                                                );
+                                            }
+                                            else
+                                            {
+                                                swprintf_s(
+                                                    message,
+                                                    L"WebView2 no pudo cargar la página inicial "
+                                                    L"(HRESULT 0x%08lX).",
+                                                    static_cast<unsigned long>(statusResult)
+                                                );
+                                            }
+                                            PostStartupFailure(hwnd, message);
+                                            return E_FAIL;
+                                        }
+
+                                        g_pageReady = true;
+                                        if (!PostMessageW(hwnd, WM_KIOSK_WEBVIEW_READY, 0, 0))
+                                        {
+                                            PostStartupFailure(
+                                                hwnd,
+                                                L"WebView2 cargó la página, pero no se pudo notificar al proceso principal."
+                                            );
+                                            return HRESULT_FROM_WIN32(GetLastError());
+                                        }
+
                                         return S_OK;
                                     })
                                 .Get(),
-                                nullptr);
+                                nullptr
+                            );
+                            if (FAILED(hr))
+                            {
+                                PostStartupFailure(
+                                    hwnd,
+                                    FormatWebViewFailure(
+                                        L"No se pudo registrar el evento de navegación de WebView2",
+                                        hr
+                                    )
+                                );
+                                return hr;
+                            }
 
-                            g_webview->add_WebMessageReceived(
+                            hr = g_webview->add_WebMessageReceived(
                                 Callback<ICoreWebView2WebMessageReceivedEventHandler>(
                                     [](ICoreWebView2*, ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT
                                     {
+                                        if (args == nullptr)
+                                            return E_POINTER;
                                         HandleWebMessage(args);
                                         return S_OK;
                                     })
                                 .Get(),
-                                nullptr);
+                                nullptr
+                            );
+                            if (FAILED(hr))
+                            {
+                                PostStartupFailure(
+                                    hwnd,
+                                    FormatWebViewFailure(
+                                        L"No se pudo registrar el canal de mensajes de WebView2",
+                                        hr
+                                    )
+                                );
+                                return hr;
+                            }
 
-                            std::wstring url = GetWebPageUrl();
+                            const std::wstring url = GetWebPageUrl();
                             if (url.empty())
                             {
-                                MessageBoxW(hwnd, L"No se pudo localizar web/index.html.", L"DesktopKiosk", MB_ICONERROR);
+                                PostStartupFailure(
+                                    hwnd,
+                                    L"No se pudo localizar web/index.html. La interfaz del kiosco no puede iniciar."
+                                );
                                 return E_FAIL;
                             }
 
-                            return g_webview->Navigate(url.c_str());
-                        })
-                    .Get());
-            })
-        .Get());
+                            hr = g_webview->Navigate(url.c_str());
+                            if (FAILED(hr))
+                            {
+                                PostStartupFailure(
+                                    hwnd,
+                                    FormatWebViewFailure(
+                                        L"WebView2 rechazó la navegación a la página inicial",
+                                        hr
+                                    )
+                                );
+                                return hr;
+                            }
 
-    if (FAILED(result))
+                            return S_OK;
+                        })
+                    .Get()
+                );
+            })
+        .Get()
+    );
+
+    if (FAILED(environmentResult))
     {
-        wchar_t errMsg[256];
-        swprintf_s(errMsg, L"CreateCoreWebView2EnvironmentWithOptions fallo. Codigo: 0x%08X", result);
-        MessageBoxW(hwnd, errMsg, L"DesktopKiosk", MB_ICONERROR);
+        PostStartupFailure(
+            hwnd,
+            FormatWebViewFailure(
+                L"CreateCoreWebView2EnvironmentWithOptions no pudo iniciar WebView2",
+                environmentResult
+            )
+        );
     }
 }
