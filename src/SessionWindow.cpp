@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <string>
 
 void LockKiosk();
 
@@ -59,8 +60,9 @@ protected:
 class SessionActive final
 {
 public:
-    SessionActive()
-        : m_sessionStart(std::chrono::steady_clock::now())
+    explicit SessionActive(const std::wstring& sessionUser)
+        : m_sessionStart(std::chrono::steady_clock::now()),
+          m_sessionUser(sessionUser)
     {
         createWidgets();
     }
@@ -207,8 +209,11 @@ private:
         m_timeLabel->setMinimumHeight(42);
         popupLayout->addWidget(m_timeLabel);
 
+        const std::wstring displayedUser = m_sessionUser.empty()
+            ? GetUserNameString()
+            : m_sessionUser;
         auto* userLabel = new QLabel(
-            QStringLiteral("Usuario: %1").arg(QString::fromStdWString(GetUserNameString())),
+            QStringLiteral("Usuario: %1").arg(QString::fromStdWString(displayedUser)),
             m_popup);
         userLabel->setObjectName(QStringLiteral("sessionDetail"));
         userLabel->setWordWrap(true);
@@ -323,6 +328,7 @@ private:
     QLabel* m_timeLabel = nullptr;
     QTimer* m_timer = nullptr;
     std::chrono::steady_clock::time_point m_sessionStart;
+    std::wstring m_sessionUser;
 };
 
 SessionActive* g_sessionActive = nullptr;
@@ -335,14 +341,16 @@ bool RegisterSessionWindowClass(HINSTANCE hInstance)
     return qApp != nullptr;
 }
 
-void CreateSessionWindow(HINSTANCE hInstance)
+void CreateSessionWindow(
+    HINSTANCE hInstance,
+    const std::wstring& sessionUser)
 {
     (void)hInstance;
 
     if (g_sessionActive != nullptr || qApp == nullptr)
         return;
 
-    auto* session = new SessionActive();
+    auto* session = new SessionActive(sessionUser);
     if (!session->isValid())
     {
         delete session;

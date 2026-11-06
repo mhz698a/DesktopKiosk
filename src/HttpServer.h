@@ -5,7 +5,7 @@
 class HttpServer
 {
 public:
-    using RequestHandler = std::function<void(const std::string& action)>;
+    using RequestHandler = std::function<void(const std::string& action, const std::string& payload)>;
 
     HttpServer() = default;
     ~HttpServer();
