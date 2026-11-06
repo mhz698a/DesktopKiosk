@@ -19,6 +19,7 @@
 #include <chrono>
 #include <cctype>
 #include <filesystem>
+#include <new>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -789,7 +790,7 @@ void InitializeWebView2(HWND hwnd)
                     return failure;
                 }
 
-                return environment->CreateCoreWebView2Controller(
+                const HRESULT controllerCreationResult = environment->CreateCoreWebView2Controller(
                     hwnd,
                     Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
                         [hwnd](HRESULT controllerResult, ICoreWebView2Controller* controller) -> HRESULT
@@ -1073,6 +1074,17 @@ void InitializeWebView2(HWND hwnd)
                         })
                     .Get()
                 );
+                if (FAILED(controllerCreationResult))
+                {
+                    PostStartupFailure(
+                        hwnd,
+                        FormatWebViewFailure(
+                            L"CreateCoreWebView2Controller no pudo iniciar el controlador de WebView2",
+                            controllerCreationResult
+                        )
+                    );
+                }
+                return controllerCreationResult;
             })
         .Get()
     );
