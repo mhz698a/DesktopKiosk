@@ -2,11 +2,13 @@
 
 #include <windows.h>
 
+#include <string>
+
 // Verifica que QApplication ya esté inicializada para crear widgets Qt.
 bool RegisterSessionWindowClass(HINSTANCE hInstance);
 
 // Crea el botón circular flotante y el Popup de sesión con Qt 6.
-void CreateSessionWindow(HINSTANCE hInstance);
+void CreateSessionWindow(HINSTANCE hInstance, const std::wstring& sessionUser = {});
 
 // Destruye la interfaz y su temporizador al bloquear el kiosco.
 void DestroySessionWindow();

@@ -463,7 +463,7 @@ public:
             }
 
             if (handler)
-                handler(handlerAction);
+                handler(handlerAction, {});
 
             const std::string responseBody =
                 "{\"status\":\"accepted\",\"action\":\"" + requestedAction + "\"}";
@@ -523,7 +523,69 @@ public:
             SendResponse(client, BuildResponse(202, "Accepted", responseBody));
             // Notificar cada recepción guardada, incluso si la IP es idéntica a la anterior.
             if (handler)
-                handler("server_ip_received");
+                handler("server_ip_received", {});
+            closesocket(client);
+            return;
+        }
+
+        if (path == "/api/kiosk/assigned-session")
+        {
+            const std::string body = GetRequestBody(request);
+            QJsonParseError parseError{};
+            const QJsonDocument json = QJsonDocument::fromJson(
+                QByteArray::fromStdString(body),
+                &parseError
+            );
+
+            if (parseError.error != QJsonParseError::NoError || !json.isObject())
+            {
+                SendResponse(client, BuildResponse(400, "Bad Request", R"({"error":"invalid_json"})"));
+                closesocket(client);
+                return;
+            }
+
+            const QJsonObject message = json.object();
+            const QJsonValue dataValue = message.value(QStringLiteral("data"));
+            if (message.value(QStringLiteral("action")).toString()
+                    != QStringLiteral("assign_session")
+                || !dataValue.isObject())
+            {
+                SendResponse(client, BuildResponse(400, "Bad Request", R"({"error":"invalid_payload"})"));
+                closesocket(client);
+                return;
+            }
+
+            const QJsonObject data = dataValue.toObject();
+            const QString displayName = data.value(QStringLiteral("display_name"))
+                .toString().trimmed();
+            const QString identifier = data.value(QStringLiteral("identifier"))
+                .toString().trimmed();
+            const QString userType = data.value(QStringLiteral("user_type"))
+                .toString().trimmed();
+
+            const bool supportedUserType =
+                userType == QStringLiteral("Alumno interno")
+                || userType == QStringLiteral("Público en general");
+            if (displayName.isEmpty() || displayName.size() > 180
+                || identifier.isEmpty() || identifier.size() > 255
+                || !supportedUserType)
+            {
+                SendResponse(client, BuildResponse(400, "Bad Request", R"({"error":"invalid_user_assignment"})"));
+                closesocket(client);
+                return;
+            }
+
+            if (handler)
+                handler("assigned_session", displayName.toUtf8().toStdString());
+
+            SendResponse(
+                client,
+                BuildResponse(
+                    202,
+                    "Accepted",
+                    R"({"status":"accepted","action":"assign_session"})"
+                )
+            );
             closesocket(client);
             return;
         }
@@ -543,7 +605,7 @@ public:
         }
 
         if (handler)
-            handler(action);
+            handler(action, {});
 
         SendResponse(
             client,
