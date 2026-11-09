@@ -510,7 +510,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
 
 /* Reloj boton oculto de cerrar */
 
-#close {
+#clock {
     font-size: 11px;
     padding: 6px 10px;
     background: transparent;
@@ -524,7 +524,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
     transition: all 0.2s ease;
 }
 
-#close:hover {
+#clock:hover {
     color: rgba(1, 9, 30, 0.85);
     cursor: default;
 }
