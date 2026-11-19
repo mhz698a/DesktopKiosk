@@ -110,6 +110,7 @@ public:
 
         auto* timer = new QTimer(this);
         timer->setInterval(1000);
+        timer->setTimerType(Qt::PreciseTimer);
         connect(timer, &QTimer::timeout, this, [this, timer]()
         {
             --m_secondsRemaining;
@@ -783,9 +784,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR commandLine, int)
 
     // Solo la tarea programada de inicio de sesión agrega este argumento.
     // Las ejecuciones manuales continúan iniciando el kiosco inmediatamente.
-    const bool isScheduledStartup =
-        commandLine != nullptr
-        && std::string(commandLine) == "--startup-countdown";
+    bool isScheduledStartup = false;
+    std::istringstream startupArguments(commandLine != nullptr ? commandLine : "");
+    std::string startupArgument;
+    while (startupArguments >> startupArgument)
+    {
+        if (startupArgument == "--startup-countdown")
+        {
+            isScheduledStartup = true;
+            break;
+        }
+    }
 
     if (isScheduledStartup)
     {
