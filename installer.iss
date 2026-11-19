@@ -44,8 +44,9 @@ Filename: "{sys}\certutil.exe"; Parameters: "-addstore -f ""TrustedPublisher"" "
 ; Permitir conexiones entrantes al servidor REST local del kiosco.
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""DesktopKiosk_In"" dir=in action=allow protocol=TCP localport=7085 program=""{app}\{#AppExeName}"" enable=yes"; StatusMsg: "Configurando el Firewall..."; Flags: runhidden waituntilterminated
 
-; Ejecutar el cliente al iniciar sesión con el nivel de privilegios más alto (Modificado con retraso).
-Filename: "{sys}\schtasks.exe"; Parameters: "{code:GetStartupTaskParameters}"; StatusMsg: "Configurando el inicio automático retrasado..."; Flags: runhidden waituntilterminated
+; Ejecutar el cliente al iniciar sesión con el nivel de privilegios más alto.
+; La cuenta regresiva de 45 segundos se muestra dentro de DesktopKiosk.
+Filename: "{sys}\schtasks.exe"; Parameters: "{code:GetStartupTaskParameters}"; StatusMsg: "Configurando el inicio automático..."; Flags: runhidden waituntilterminated
 
 [UninstallRun]
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""DesktopKiosk_Startup"" /F"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveKioskTask"
@@ -60,5 +61,5 @@ function GetStartupTaskParameters(Param: string): string;
 begin
   Result := '/Create /TN "DesktopKiosk_Startup" /TR "\"' +
     ExpandConstant('{app}\' + '{#AppExeName}') +
-    '\"" /SC ONLOGON /DELAY 0000:45 /RL HIGHEST /F';
+    '\" --startup-countdown" /SC ONLOGON /RL HIGHEST /F';
 end;

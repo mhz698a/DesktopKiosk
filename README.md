@@ -105,6 +105,8 @@ La aplicación inicializa un kiosco en pantalla completa y muestra una interfaz 
 - interactuar con el sistema mediante la API central
 - usar el menú de administración según las credenciales locales
 
+Cuando Windows inicia sesión, la tarea programada abre DesktopKiosk y muestra un diálogo Qt con una cuenta regresiva de 45 segundos antes de inicializar WebView2. Este comportamiento solo se activa mediante el argumento reservado de la tarea; al abrir DesktopKiosk manualmente, el inicio es inmediato.
+
 Durante la ejecución, la app:
 
 - controla el estado del kiosco
