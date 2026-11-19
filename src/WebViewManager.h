@@ -11,6 +11,9 @@ void ShutdownWebView2();
 // Redimensiona la vista de WebView2 al cambiar el tamaño de la ventana
 void ResizeWebView();
 
+// Transfiere el foco del teclado al contenido de WebView2.
+void FocusWebView();
+
 // Publica en WebView2 la respuesta de una petición del servidor central.
 // Se invoca desde el hilo de UI y libera el objeto recibido.
 void DispatchCentralApiResponse(std::wstring* responseJson);
