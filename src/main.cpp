@@ -7,9 +7,13 @@
 #include <windows.h>
 
 #include <QApplication>
+#include <QDialog>
 #include <QGuiApplication>
+#include <QLabel>
 #include <QScreen>
 #include <QString>
+#include <QTimer>
+#include <QVBoxLayout>
 
 #include <chrono>
 #include <cstdio>
@@ -50,6 +54,101 @@ bool g_leftShiftDown = false;
 bool g_rightShiftDown = false;
 bool g_leftAltDown = false;
 bool g_rightAltDown = false;
+
+class StartupCountdownDialog final : public QDialog
+{
+public:
+    explicit StartupCountdownDialog(QWidget* parent = nullptr)
+        : QDialog(parent)
+    {
+        setWindowTitle(QStringLiteral("Preparando DesktopKiosk"));
+        setWindowFlags(
+            (windowFlags() | Qt::WindowStaysOnTopHint)
+            & ~Qt::WindowContextHelpButtonHint
+            & ~Qt::WindowCloseButtonHint
+        );
+        setModal(true);
+        setFixedSize(500, 220);
+        setStyleSheet(
+            "QDialog { background: #f4f6f8; }"
+            "QLabel { color: #202124; }"
+        );
+
+        auto* layout = new QVBoxLayout(this);
+        layout->setContentsMargins(32, 28, 32, 28);
+        layout->setSpacing(14);
+
+        auto* titleLabel = new QLabel(
+            QStringLiteral("Inicio automático de DesktopKiosk"),
+            this
+        );
+        titleLabel->setAlignment(Qt::AlignCenter);
+        titleLabel->setStyleSheet("font-size: 18px; font-weight: 600;");
+
+        auto* messageLabel = new QLabel(
+            QStringLiteral(
+                "Windows ha iniciado sesión. DesktopKiosk se abrirá automáticamente "
+                "cuando termine el tiempo de preparación del equipo."
+            ),
+            this
+        );
+        messageLabel->setWordWrap(true);
+        messageLabel->setAlignment(Qt::AlignCenter);
+
+        m_countdownLabel = new QLabel(this);
+        m_countdownLabel->setAlignment(Qt::AlignCenter);
+        m_countdownLabel->setStyleSheet(
+            "font-size: 15px; font-weight: 600; color: #245b85;"
+        );
+
+        layout->addWidget(titleLabel);
+        layout->addWidget(messageLabel);
+        layout->addStretch(1);
+        layout->addWidget(m_countdownLabel);
+
+        UpdateCountdownText();
+
+        auto* timer = new QTimer(this);
+        timer->setInterval(1000);
+        connect(timer, &QTimer::timeout, this, [this, timer]()
+        {
+            --m_secondsRemaining;
+            if (m_secondsRemaining <= 0)
+            {
+                timer->stop();
+                accept();
+                return;
+            }
+
+            UpdateCountdownText();
+        });
+        timer->start();
+
+        if (QScreen* screen = QGuiApplication::primaryScreen())
+        {
+            const QRect availableGeometry = screen->availableGeometry();
+            move(availableGeometry.center() - rect().center());
+        }
+    }
+
+protected:
+    void reject() override
+    {
+        // El período de preparación no se puede omitir desde el diálogo.
+    }
+
+private:
+    void UpdateCountdownText()
+    {
+        m_countdownLabel->setText(
+            QStringLiteral("DesktopKiosk se iniciará en %1 segundos.")
+                .arg(m_secondsRemaining)
+        );
+    }
+
+    int m_secondsRemaining = 45;
+    QLabel* m_countdownLabel = nullptr;
+};
 
 bool IsDesktopKioskForeground() noexcept
 {
@@ -394,12 +493,48 @@ static void ConfigureFullscreenWindow(HWND hwnd, bool showWindow)
     );
 }
 
+static void ActivateKioskWindow(HWND hwnd)
+{
+    if (!IsWindow(hwnd))
+        return;
+
+    const DWORD currentThreadId = GetCurrentThreadId();
+    const HWND foregroundWindow = GetForegroundWindow();
+    DWORD foregroundThreadId = 0;
+    if (foregroundWindow != nullptr)
+        foregroundThreadId = GetWindowThreadProcessId(foregroundWindow, nullptr);
+
+    // La tarea programada puede iniciar el proceso en segundo plano. Asociar
+    // temporalmente las colas de entrada permite solicitar la activación
+    // respetando el escritorio interactivo actual.
+    const bool inputQueuesAttached =
+        foregroundThreadId != 0
+        && foregroundThreadId != currentThreadId
+        && AttachThreadInput(currentThreadId, foregroundThreadId, TRUE) != FALSE;
+
+    ShowWindow(hwnd, SW_SHOW);
+    SetWindowPos(
+        hwnd,
+        HWND_TOPMOST,
+        0, 0, 0, 0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
+    );
+    BringWindowToTop(hwnd);
+    SetForegroundWindow(hwnd);
+    SetActiveWindow(hwnd);
+    SetFocus(hwnd);
+
+    if (inputQueuesAttached)
+        AttachThreadInput(currentThreadId, foregroundThreadId, FALSE);
+}
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
         case WM_KIOSK_WEBVIEW_READY:
             StartKioskRuntime();
+            ActivateKioskWindow(hwnd);
             return 0;
 
         case WM_KIOSK_STARTUP_FAILED:
@@ -577,7 +712,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
     return DefWindowProcW(hwnd, message, wParam, lParam);
 }
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR commandLine, int)
 {
     // Bloquea una segunda ejecución antes de inicializar Qt o crear ventanas.
     // El objeto Local se comparte entre procesos de la misma sesión de Windows.
@@ -645,6 +780,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
 
     qtApp->setApplicationName(QStringLiteral("DesktopKiosk"));
     QApplication::setQuitOnLastWindowClosed(false);
+
+    // Solo la tarea programada de inicio de sesión agrega este argumento.
+    // Las ejecuciones manuales continúan iniciando el kiosco inmediatamente.
+    const bool isScheduledStartup =
+        commandLine != nullptr
+        && std::string(commandLine) == "--startup-countdown";
+
+    if (isScheduledStartup)
+    {
+        StartupCountdownDialog startupDialog;
+        if (startupDialog.exec() != QDialog::Accepted)
+        {
+            CloseHandle(singleInstanceMutex);
+            return 1;
+        }
+    }
 
     const wchar_t CLASS_NAME[] = L"DesktopKioskWindow";
 
