@@ -536,6 +536,17 @@ void ResizeWebView()
     }
 }
 
+void FocusWebView()
+{
+    if (!g_controller)
+        return;
+
+    const HRESULT result =
+        g_controller->MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
+    if (FAILED(result))
+        OutputDebugStringW(L"[WEBVIEW2] No se pudo transferir el foco al contenido web.\n");
+}
+
 static void HandleWebMessage(ICoreWebView2WebMessageReceivedEventArgs* args)
 {
     wchar_t* source = nullptr;
