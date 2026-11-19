@@ -536,6 +536,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
         case WM_KIOSK_WEBVIEW_READY:
             StartKioskRuntime();
             ActivateKioskWindow(hwnd);
+            FocusWebView();
             return 0;
 
         case WM_KIOSK_STARTUP_FAILED:
