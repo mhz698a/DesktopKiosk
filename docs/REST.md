@@ -94,7 +94,7 @@ Las acciones se publican al hilo de UI mediante mensajes `WM_APP`; el código HT
 
 ## Bloqueo por inactividad
 
-Mientras el kiosco está desbloqueado, la aplicación consulta la última entrada de teclado o mouse de la sesión de Windows con `GetLastInputInfo`. A los **180 segundos** sin actividad muestra un aviso no bloqueante que indica que quedan dos minutos. Si la inactividad continúa hasta **300 segundos**, el kiosco se bloquea y vuelve a la pantalla de acceso. Cualquier nueva entrada de teclado o mouse reinicia el cómputo y oculta el aviso si ya se había mostrado.
+Mientras el kiosco está desbloqueado, la aplicación consulta la última entrada de teclado o mouse de la sesión de Windows con `GetLastInputInfo`. El contador se inicializa en el momento de cada desbloqueo o asignación de sesión; por eso, la inactividad que ocurrió antes de recibir una orden remota no se acumula sobre la sesión nueva. A los **180 segundos** sin actividad posterior al desbloqueo muestra un aviso no bloqueante que indica que quedan dos minutos. Si la inactividad continúa hasta **300 segundos**, el kiosco se bloquea y vuelve a la pantalla de acceso. Cualquier nueva entrada de teclado o mouse reinicia el cómputo y oculta el aviso si ya se había mostrado.
 
 
 La clase `DesktopKioskSessionWindow` se registra una sola vez durante la inicialización de la aplicación. Esto permite crear y destruir la ventana de sesión repetidamente sin intentar registrar nuevamente la misma clase cada vez que se desbloquea el kiosco.
