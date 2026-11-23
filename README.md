@@ -96,6 +96,17 @@ cmake --build . --config Release
 
 > Nota: El proyecto está preparado para compilarse en Windows y hace uso de rutas específicas de Qt en CMake. Si tu entorno no coincide con la configuración actual, será necesario ajustar la ruta de `windeployqt` y la instalación de Qt.
 
+## Compilación del instalador en GitHub
+
+El workflow **Windows build** compila DesktopKiosk para Windows x64 y genera
+`Output/Installer_DesktopKiosk.exe`. Se ejecuta al abrir o actualizar una PR
+hacia `main`, al actualizar `main` y también puede iniciarse manualmente
+desde **Actions → Windows build → Run workflow**.
+
+Al terminar correctamente, descarga el instalador desde la sección **Artifacts**
+de la ejecución. El workflow prepara Qt 6.11.2, restaura el SDK nativo de
+WebView2 desde NuGet y compila el instalador con Inno Setup.
+
 ## Uso
 
 La aplicación inicializa un kiosco en pantalla completa y muestra una interfaz web localizada en la carpeta `web/`. Desde ahí, el usuario puede:
