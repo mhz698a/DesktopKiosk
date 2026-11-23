@@ -36,8 +36,8 @@ namespace
 constexpr size_t kMaxRequestBytes = 16 * 1024;
 constexpr char kDefaultBindAddress[] = "0.0.0.0";
 constexpr DWORD kSocketTimeoutMs = 5000;
-constexpr size_t kMaxQueuedClients = 32;
-constexpr size_t kWorkerCount = 8;
+constexpr size_t kMaxQueuedClients = 128;
+constexpr size_t kWorkerCount = 16;
 
 std::string GetEnvironmentValue(const char* name)
 {
