@@ -76,10 +76,21 @@ target_link_libraries(DesktopKiosk PRIVATE
 )
 
 if(WIN32)
-    set(_qt_bin_dir "C:/Qt/6.11.2/msvc2022_64/bin")
+    # Resolver windeployqt desde la misma instalación de Qt que encontró CMake.
+    get_filename_component(_qt_package_dir "${Qt6_DIR}" ABSOLUTE)
+    get_filename_component(_qt_prefix_dir "${_qt_package_dir}/../../.." ABSOLUTE)
+    set(_qt_bin_dir "${_qt_prefix_dir}/bin")
+    set(_windeployqt "${_qt_bin_dir}/windeployqt.exe")
 
-    add_custom_command(TARGET DesktopKiosk POST_BUILD 
-        COMMAND "${_qt_bin_dir}/windeployqt.exe" $<$<CONFIG:Debug>:--debug> "$<TARGET_FILE:DesktopKiosk>"
+    if(NOT EXISTS "${_windeployqt}")
+        message(FATAL_ERROR
+            "No se encontró windeployqt.exe en ${_qt_bin_dir}. "
+            "Comprueba CMAKE_PREFIX_PATH y la instalación de Qt."
+        )
+    endif()
+
+    add_custom_command(TARGET DesktopKiosk POST_BUILD
+        COMMAND "${_windeployqt}" $<$<CONFIG:Debug>:--debug> "$<TARGET_FILE:DesktopKiosk>"
         COMMENT "Desplegando dependencias de Qt con windeployqt..."
     )
 endif()

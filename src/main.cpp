@@ -258,19 +258,8 @@ static HttpServer g_httpServer;
 static int g_startupExitCode = 0;
 static bool g_kioskRuntimeStarted = false;
 
-void StartKioskRuntime()
+bool StartKioskHttpServer()
 {
-    if (g_kioskRuntimeStarted || g_hwnd == nullptr)
-        return;
-
-    g_kioskRuntimeStarted = true;
-    KillTimer(g_hwnd, kWebViewStartupTimerId);
-
-    if (SetTimer(g_hwnd, kKioskIdleTimerId, 1000, nullptr) == 0)
-        OutputDebugStringW(L"[KIOSK] No se pudo iniciar el temporizador de inactividad.\n");
-    if (SetTimer(g_hwnd, kKioskHeartbeatTimerId, 1000, nullptr) == 0)
-        OutputDebugStringW(L"[HEARTBEAT] No se pudo iniciar el temporizador de heartbeat.\n");
-
     if (!g_httpServer.Start(7085, [](const std::string& action, const std::string& payload)
     {
         if (action == "unlock")
@@ -302,7 +291,24 @@ void StartKioskRuntime()
     }))
     {
         OutputDebugStringW(L"[HTTP] Servidor REST no iniciado.\n");
+        return false;
     }
+    return true;
+}
+
+void StartKioskRuntime()
+{
+    if (g_kioskRuntimeStarted || g_hwnd == nullptr)
+        return;
+
+    g_kioskRuntimeStarted = true;
+    KillTimer(g_hwnd, kWebViewStartupTimerId);
+
+    if (SetTimer(g_hwnd, kKioskIdleTimerId, 1000, nullptr) == 0)
+        OutputDebugStringW(L"[KIOSK] No se pudo iniciar el temporizador de inactividad.\n");
+    if (SetTimer(g_hwnd, kKioskHeartbeatTimerId, 1000, nullptr) == 0)
+        OutputDebugStringW(L"[HEARTBEAT] No se pudo iniciar el temporizador de heartbeat.\n");
+
 }
 
 std::wstring GetKioskTimeString()
@@ -880,6 +886,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR commandLine, int)
             errorCode
         );
         MessageBoxW(g_hwnd, errorMessage, L"DesktopKiosk", MB_OK | MB_ICONERROR);
+        DestroyWindow(g_hwnd);
+        CloseHandle(singleInstanceMutex);
+        return 1;
+    }
+
+    // La interfaz inicial también se sirve desde el servidor HTTP local.
+    // Debe estar escuchando antes de que WebView2 navegue a 127.0.0.1:7085.
+    if (!StartKioskHttpServer())
+    {
+        g_startupExitCode = 1;
+        MessageBoxW(
+            g_hwnd,
+            L"No se pudo iniciar el servidor local de DesktopKiosk en el puerto 7085. "
+            L"Comprueba que el puerto no esté ocupado y vuelve a iniciar la aplicación.",
+            L"Error de inicio - DesktopKiosk",
+            MB_OK | MB_ICONERROR
+        );
         DestroyWindow(g_hwnd);
         CloseHandle(singleInstanceMutex);
         return 1;
