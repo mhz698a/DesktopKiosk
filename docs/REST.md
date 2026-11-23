@@ -26,9 +26,11 @@ Los objetos COM de WebView2 se liberan y `CoUninitialize` se ejecuta en el mismo
 
 ## Protección del servidor HTTP
 
-El procesamiento de clientes utiliza un conjunto fijo de **8 workers** y una cola limitada a **32 conexiones pendientes**. Cada socket cliente tiene un timeout de lectura y escritura de **5 segundos**.
+El procesamiento de clientes utiliza un conjunto fijo de **16 workers** y una cola limitada a **128 conexiones pendientes**. Cada socket cliente tiene un timeout de lectura y escritura de **5 segundos**.
 
-Esto evita que una conexión que permanezca abierta sin completar una petición bloquee indefinidamente el servidor y limita el consumo de recursos ante múltiples conexiones simultáneas.
+El servidor escucha por defecto en `0.0.0.0:7085`, por lo que no está vinculado a una sola PC de control ni filtra las conexiones por IP de origen. Varios equipos con acceso al puerto pueden enviar órdenes al mismo DesktopKiosk; el límite de concurrencia se aplica al total de solicitudes recibidas, no al número de equipos emisores.
+
+Esto evita que una conexión que permanezca abierta sin completar una petición bloquee indefinidamente el servidor y permite absorber ráfagas de hasta 128 conexiones en espera mientras los 16 workers procesan las solicitudes activas.
 
 Las conexiones que superen la capacidad de la cola reciben una respuesta `503 Service Unavailable`.
 
