@@ -28,13 +28,32 @@ jobs:
         with:
           arch: x64
 
-      - name: Install Qt 6.11.2
-        uses: jurplel/install-qt-action@v4
+      - name: Set up Python for Qt installer
+        uses: actions/setup-python@v6
         with:
-          version: '6.11.2'
-          target: desktop
-          arch: win64_msvc2022_64
-          cache: true
+          python-version: '3.12'
+
+      - name: Install Qt 6.11.2
+        shell: pwsh
+        run: |
+          # aqtinstall 3.3.0 does not understand the flattened Qt 6.11
+          # Windows repository layout. Use the merged upstream fix.
+          python -m pip install --upgrade "git+https://github.com/miurahr/aqtinstall.git@8c3695d4a4e1ceabf6a74dc6c79681656dc6b74b"
+
+          $qtBase = Join-Path $env:GITHUB_WORKSPACE 'Qt'
+          python -m aqt install-qt windows desktop 6.11.2 win64_msvc2022_64 --autodesktop --outputdir $qtBase
+          if ($LASTEXITCODE -ne 0) {
+            throw "aqtinstall no pudo instalar Qt 6.11.2."
+          }
+
+          $qtRoot = Join-Path $qtBase '6.11.2\msvc2022_64'
+          $windeployqt = Join-Path $qtRoot 'bin\windeployqt.exe'
+          if (-not (Test-Path $windeployqt)) {
+            throw "No se encontró windeployqt.exe en $qtRoot."
+          }
+
+          "QT_ROOT_DIR=$qtRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          (Join-Path $qtRoot 'bin') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Restore WebView2 native SDK
         shell: pwsh
