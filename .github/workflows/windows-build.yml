@@ -1,0 +1,92 @@
+name: Windows build
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build installer (Windows x64)
+    runs-on: windows-2022
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Qt 6.11.2
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.11.2'
+          target: desktop
+          arch: win64_msvc2022_64
+          cache: true
+
+      - name: Restore WebView2 native SDK
+        shell: pwsh
+        run: |
+          $version = '1.0.4129.50'
+          $package = Join-Path $env:RUNNER_TEMP "microsoft.web.webview2.$version.nupkg"
+          $uri = "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/$version/microsoft.web.webview2.$version.nupkg"
+          Invoke-WebRequest -Uri $uri -OutFile $package
+
+          $destination = Join-Path $env:GITHUB_WORKSPACE 'extern\webview2'
+          New-Item -ItemType Directory -Path $destination -Force | Out-Null
+          Expand-Archive -LiteralPath $package -DestinationPath $destination -Force
+
+          $header = Join-Path $destination 'build\native\include\WebView2.h'
+          $library = Join-Path $destination 'build\native\x64\WebView2LoaderStatic.lib'
+          if (-not (Test-Path $header)) {
+            throw "No se encontró WebView2.h dentro del paquete NuGet."
+          }
+          if (-not (Test-Path $library)) {
+            throw "No se encontró WebView2LoaderStatic.lib dentro del paquete NuGet."
+          }
+
+      - name: Configure CMake
+        shell: pwsh
+        run: |
+          if (-not $env:QT_ROOT_DIR) {
+            throw "install-qt-action no proporcionó QT_ROOT_DIR."
+          }
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 "-DCMAKE_PREFIX_PATH=$env:QT_ROOT_DIR"
+
+      - name: Build DesktopKiosk
+        run: cmake --build build --config Release --parallel
+
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          $programFilesX86 = [Environment]::GetFolderPath('ProgramFilesX86')
+          $compiler = Join-Path $programFilesX86 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $compiler)) {
+            throw "No se encontró ISCC.exe de Inno Setup."
+          }
+          & $compiler /Qp installer.iss
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup terminó con el código $LASTEXITCODE."
+          }
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: DesktopKiosk-Installer-Windows-x64
+          path: Output/Installer_DesktopKiosk.exe
+          if-no-files-found: error
+          retention-days: 14
