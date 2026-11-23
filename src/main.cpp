@@ -41,6 +41,7 @@ constexpr DWORD kIdleWarningMilliseconds = 180000;
 constexpr DWORD kIdleLockMilliseconds = 300000;
 bool g_idleWarningShown = false;
 std::chrono::steady_clock::time_point g_sessionStartedAt{};
+DWORD g_lastKioskInputTick = 0;
 HHOOK g_keyboardHook = nullptr;
 
 // WH_KEYBOARD_LL es necesario para poder interceptar atajos que Windows procesa
@@ -336,6 +337,7 @@ void UnlockKiosk()
 
     g_kioskState = KioskState::Unlocked;
     g_sessionStartedAt = std::chrono::steady_clock::now();
+    g_lastKioskInputTick = GetTickCount();
     g_idleWarningShown = false;
     DispatchIdleWarningCleared();
     OutputDebugStringW(L"[KIOSK] Estado cambiado a UNLOCKED\n");
@@ -353,6 +355,7 @@ void UnlockKioskForUser(const std::wstring& assignedUser)
 
     g_kioskState = KioskState::Unlocked;
     g_sessionStartedAt = std::chrono::steady_clock::now();
+    g_lastKioskInputTick = GetTickCount();
     g_idleWarningShown = false;
     DispatchIdleWarningCleared();
     OutputDebugStringW(L"[KIOSK] Sesión asignada desde DesktopKioskCenter.\\n");
@@ -650,8 +653,17 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
                 if (!GetLastInputInfo(&lastInput))
                     return 0;
 
-                // GetLastInputInfo puede devolver una marca de tiempo no monotónica.
-                const LONG idleDifference = static_cast<LONG>(GetTickCount() - lastInput.dwTime);
+                // GetLastInputInfo puede conservar la última entrada anterior al
+                // desbloqueo remoto. Nunca permitimos que esa marca haga que la
+                // sesión recién iniciada se bloquee de inmediato.
+                if (static_cast<LONG>(lastInput.dwTime - g_lastKioskInputTick) > 0)
+                    g_lastKioskInputTick = lastInput.dwTime;
+
+                // El contador parte del desbloqueo y después sigue la actividad
+                // física más reciente detectada en la sesión de Windows.
+                const LONG idleDifference = static_cast<LONG>(
+                    GetTickCount() - g_lastKioskInputTick
+                );
                 const DWORD idleMilliseconds = idleDifference > 0
                     ? static_cast<DWORD>(idleDifference)
                     : 0;
