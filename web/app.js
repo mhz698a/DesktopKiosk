@@ -668,7 +668,6 @@ async function loadExternalUserCatalog() {
     const universities = response?.data?.universities;
     if (
         !Array.isArray(userTypes)
-        || userTypes.length === 0
         || !Array.isArray(universities)
     ) {
         return;
