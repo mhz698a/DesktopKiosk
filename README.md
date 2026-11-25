@@ -154,6 +154,8 @@ DesktopKiosk implementa varios mecanismos para reducir la posibilidad de salida 
 
 Consulta:
 
+- [Manual de usuario de DesktopKiosk](docs/Manual_de_usuario_DesktopKiosk.md) para el uso cotidiano del kiosco.
+
 - `docs/REST.md` para la referencia de la REST API
 - `web/` para la interfaz gráfica
 - `src/` para la lógica del clienteWindows
