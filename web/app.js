@@ -780,7 +780,13 @@ async function switchTab(evt, panelId) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
 
     targetPanel.classList.add('active');
-    
+
+    // Recarga los catálogos al abrir el formulario para reflejar cambios hechos
+    // desde DesktopKioskCenter sin reinstalar ni reiniciar el kiosco.
+    if (panelId === 'externos-panel') {
+        loadExternalUserCatalog();
+    }
+
     if (evt?.currentTarget) evt.currentTarget.classList.add('active');
 }
 
