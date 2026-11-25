@@ -166,11 +166,14 @@ Rutas de la API central implementadas en `DesktopKioskCenter/api_server.py`:
 
 - Inicio de sesión: `POST /api/v1/auth-client-pc/login`
 - Registro de alumno: `POST /api/v1/users/register/alumno`
+- Registro de docente o administrativo: `POST /api/v1/users/register/personal`
 - Registro de externo: `POST /api/v1/users/register/externo`
+- Catálogo de facultades para los formularios: `GET /api/v1/catalog/faculties`
 - Heartbeat/estado del kiosco: `POST /api/v1/health`
 
-Las solicitudes POST usan el cuerpo JSON que espera la API central, con las claves de primer nivel `action` y `data`. Por ejemplo:
-En inicio de sesión, `data.usuario` contiene el correo electrónico; los alumnos internos también pueden usar su expediente como alternativa. Los nombres no se usan para identificar cuentas. El formulario de registro de alumnos internos solicita email, y el centro valida que sea único entre todas las categorías de usuarios.
+Las solicitudes POST usan el cuerpo JSON que espera la API central, con las claves de primer nivel `action` y `data`. El catálogo de facultades se consulta mediante GET y se comparte entre el registro de alumnos y el de personal. En inicio de sesión, `data.usuario` acepta correo electrónico, expediente de alumno o número de empleado de docente/administrativo; los nombres no se usan para identificar cuentas.
+
+Los registros de personal incluyen nombres, apellidos, correo, tipo (Docente o Administrativo), facultad y número de empleado. Este último es el identificador institucional equivalente al expediente del alumno. El centro mantiene la unicidad del correo y evita que un número de empleado coincida con un expediente de alumno.
 
 
 ~~~json
