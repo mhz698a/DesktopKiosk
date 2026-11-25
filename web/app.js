@@ -257,55 +257,109 @@ document.addEventListener('DOMContentLoaded', () => {
     loadFacultyCatalog();
 });
 
-document.addEventListener('DOMContentLoaded', () => {
-    const selectUniversidad = document.getElementById('universidad-ext');
+const DEFAULT_EXTERNAL_USER_TYPES = [
+    { name: "Estudiante Externo", requires_university: true },
+    { name: "Trabajador Interno", requires_university: false },
+    { name: "Público en general", requires_university: false }
+];
 
-    const universidadesQueretaro = [
-        // Públicas Principales
-        "Instituto Tecnológico de Querétaro (ITQ)",
-        "Universidad Tecnológica de Querétaro (UTEQ)",
-        "Universidad Politécnica de Querétaro (UPQ)",
-        "Universidad Aeronáutica en Querétaro (UNAQ)",
-        "Universidad Nacional Autónoma de México (UNAM - Campus Juriquilla)",
-        "Universidad Tecnológica de San Juan del Río (UTSJR)",
-        "Universidad Politécnica de Santa Rosa Jáuregui (UPSRJ)",
-        "Escuela Normal Superior de Querétaro – ENSQ",
-        
-        // Privadas Principales
-        "Tecnológico de Monterrey (Campus Querétaro)",
-        "Universidad Anáhuac (Sede Querétaro)",
-        "Universidad Tecnológica de México (UNITEC)",
-        "Universidad Marista de Querétaro",
-        "Universidad Cuauhtémoc (Plantel Querétaro)",
-        "Arkansas State University (Campus Querétaro)",
-        "Universidad de Estudios Avanzados (UNEA)",
-        "Universidad Tecmilenio",
-        "Otra institución externa"
-    ];
+const DEFAULT_UNIVERSITIES = [
+    "Instituto Tecnológico de Querétaro (ITQ)",
+    "Universidad Tecnológica de Querétaro (UTEQ)",
+    "Universidad Politécnica de Querétaro (UPQ)",
+    "Universidad Aeronáutica en Querétaro (UNAQ)",
+    "Universidad Nacional Autónoma de México (UNAM - Campus Juriquilla)",
+    "Universidad Tecnológica de San Juan del Río (UTSJR)",
+    "Universidad Politécnica de Santa Rosa Jáuregui (UPSRJ)",
+    "Escuela Normal Superior de Querétaro – ENSQ",
+    "Tecnológico de Monterrey (Campus Querétaro)",
+    "Universidad Anáhuac (Sede Querétaro)",
+    "Universidad Tecnológica de México (UNITEC)",
+    "Universidad Marista de Querétaro",
+    "Universidad Cuauhtémoc (Plantel Querétaro)",
+    "Arkansas State University (Campus Querétaro)",
+    "Universidad de Estudios Avanzados (UNEA)",
+    "Universidad Tecmilenio",
+    "Otra institución externa"
+];
 
-    if (selectUniversidad) {
-        universidadesQueretaro.forEach(uni => {
-            const option = document.createElement('option');
-            option.value = uni;
-            option.textContent = uni;
-            selectUniversidad.appendChild(option);
-        });
-    }
-});
+let externalUserTypeCatalog = new Map();
+
+function applyExternalUserCatalog(userTypes, universities) {
+    const typeSelect = document.getElementById("tipo-usuario");
+    const universitySelect = document.getElementById("universidad-ext");
+    if (!typeSelect || !universitySelect) return;
+
+    const selectedType = typeSelect.value;
+    const selectedUniversity = universitySelect.value;
+    const typePlaceholder = typeSelect.options[0]?.cloneNode(true);
+    const universityPlaceholder = universitySelect.options[0]?.cloneNode(true);
+
+    externalUserTypeCatalog = new Map(
+        (Array.isArray(userTypes) ? userTypes : []).map(item => [
+            String(item.name || "").trim().toLocaleLowerCase(),
+            {
+                name: String(item.name || "").trim(),
+                requires_university: item.requires_university === true
+            }
+        ]).filter(([key, item]) => key && item.name)
+    );
+
+    typeSelect.innerHTML = "";
+    if (typePlaceholder) typeSelect.appendChild(typePlaceholder);
+    userTypes.forEach(item => {
+        const name = String(item.name || "").trim();
+        if (!name) return;
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        typeSelect.appendChild(option);
+    });
+
+    universitySelect.innerHTML = "";
+    if (universityPlaceholder) universitySelect.appendChild(universityPlaceholder);
+    universities.forEach(nameValue => {
+        const name = String(nameValue || "").trim();
+        if (!name) return;
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        universitySelect.appendChild(option);
+    });
+
+    const typeIndex = Array.from(typeSelect.options).findIndex(
+        option => option.value === selectedType
+    );
+    typeSelect.selectedIndex = typeIndex >= 0 ? typeIndex : 0;
+    const universityIndex = Array.from(universitySelect.options).findIndex(
+        option => option.value === selectedUniversity
+    );
+    universitySelect.selectedIndex = universityIndex >= 0 ? universityIndex : 0;
+    toggleUniversidad(typeSelect);
+}
 
 function toggleUniversidad(selectObj) {
-    const uniGroup = document.getElementById('uni-group');
-    const selectUniversidad = document.getElementById('universidad-ext');
-    
-    if (selectObj.value === 'estudiante') {
-        uniGroup.style.display = 'block';
-    } else {
-        uniGroup.style.display = 'none';
-        if (selectUniversidad) {
-            selectUniversidad.selectedIndex = 0;
-        }
+    const uniGroup = document.getElementById("uni-group");
+    const selectUniversidad = document.getElementById("universidad-ext");
+    const typeName = String(selectObj?.value || "").trim().toLocaleLowerCase();
+    const typeInfo = externalUserTypeCatalog.get(typeName);
+    const requiresUniversity = typeInfo?.requires_university === true;
+
+    if (uniGroup) {
+        uniGroup.style.display = requiresUniversity ? "block" : "none";
+    }
+    if (selectUniversidad) {
+        selectUniversidad.disabled = !requiresUniversity;
+        if (!requiresUniversity) selectUniversidad.selectedIndex = 0;
     }
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+    // Los valores locales permiten mostrar el formulario incluso antes de consultar
+    // el catálogo central. El servidor reemplaza estos valores con AppData.
+    applyExternalUserCatalog(DEFAULT_EXTERNAL_USER_TYPES, DEFAULT_UNIVERSITIES);
+    loadExternalUserCatalog();
+});
 
 // Verificar que los campos visibles del panel activo no estén vacíos
 function validarPanelActivo() {
@@ -601,6 +655,25 @@ async function sendCentralApiRequest(method, path, payload = {}, options = {}) {
         status: response.status,
         data: apiResponse
     };
+}
+
+async function loadExternalUserCatalog() {
+    const response = await sendCentralApiRequest(
+        "GET",
+        "/api/v1/catalog/external-users",
+        {},
+        { silent: true }
+    );
+    const userTypes = response?.data?.user_types;
+    const universities = response?.data?.universities;
+    if (
+        !Array.isArray(userTypes)
+        || userTypes.length === 0
+        || !Array.isArray(universities)
+    ) {
+        return;
+    }
+    applyExternalUserCatalog(userTypes, universities);
 }
 
 async function loadFacultyCatalog() {
