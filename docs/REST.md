@@ -55,7 +55,7 @@ Para control remoto, configura `DESKTOPKIOSK_HTTP_BIND` si quieres limitar la in
 
 ### Iniciar una sesión asignada por el administrador
 
-DesktopKioskCenter puede asignar una sesión a un alumno interno o a una persona de público en general mediante:
+DesktopKioskCenter puede asignar una sesión a un alumno interno, docente, administrativo o una persona de público en general mediante:
 
 `POST /api/kiosk/assigned-session`
 
