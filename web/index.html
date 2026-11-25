@@ -24,6 +24,7 @@
         <div class="tabs-container" style="display: none;">
             <button class="tab-btn active" onclick="switchTab(event, 'login-panel')">Inicio de sesión</button>
             <button class="tab-btn" onclick="switchTab(event, 'internos-panel')">Registro de alumnos</button>
+            <button class="tab-btn" onclick="switchTab(event, 'personal-panel')">Registro de docentes y administrativos</button>
             <button class="tab-btn" onclick="switchTab(event, 'externos-panel')">Registro de externos</button>
         </div>
 
@@ -32,7 +33,7 @@
             <h1>Inicio de sesión</h1>
             <div class="form-group">
                 <div class="input-wrapper">
-                    <input type="text" id="usuario" placeholder="Correo electrónico/Expediente">
+                    <input type="text" id="usuario" placeholder="Correo electrónico / Expediente / No. de empleado">
                     <span class="input-tooltip">Ej: 123456 o ejemplo@gmail.com</span>
                 </div>
             </div>
@@ -40,7 +41,7 @@
         <div class="form-group">
             <div class="input-wrapper" style="position: relative;"> <!-- Asegúrate de que el contenedor tenga position: relative -->
                 <input type="password" id="contrasena" name="contrasena" placeholder="Contraseña" class="password-input">
-                <div class="input-tooltip password-tooltip">La contraseña debe ser un punto seguido de tu correo electrónico o expediente (ej. .123456 o .ejemplo@gmail.com)</div>
+                <div class="input-tooltip password-tooltip">La contraseña debe ser un punto seguido de tu correo electrónico, expediente o número de empleado (ej. .123456 o .ejemplo@gmail.com)</div>
                 <button type="button" id="toggle-password" class="password-toggle-btn" aria-label="Mostrar contraseña">
                     <!-- Icono Ojo Abierto (Mostrar) -->
                     <svg xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-eye">
@@ -87,7 +88,41 @@
             <button class="unlock">Registrarse</button>
         </div>
 
-        <!-- Panel 3: Registro de externos -->
+        <!-- Panel 3: Registro de docentes y administrativos -->
+        <div id="personal-panel" class="tab-panel">
+            <div class="form-group">
+                <select id="tipo-personal">
+                    <option value="" disabled selected>Tipo de personal</option>
+                    <option value="Docente">Docente</option>
+                    <option value="Administrativo">Administrativo</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <input type="text" id="nombres" placeholder="Nombres">
+                <span class="input-tooltip">Ej: Nombre Ejemplo</span>
+            </div>
+            <div class="form-group">
+                <input type="text" id="apellidos" placeholder="Apellidos (Paterno y Materno)">
+                <span class="input-tooltip">Ej: Apellidos Ejemplo</span>
+            </div>
+            <div class="form-group">
+                <select id="facultad-personal">
+                    <option value="" disabled selected>Facultad perteneciente</option>
+                </select>
+                <span class="input-tooltip">Selecciona la facultad o unidad de adscripción</span>
+            </div>
+            <div class="form-group">
+                <input type="text" id="numero-empleado" placeholder="No. de empleado" inputmode="numeric">
+                <span class="input-tooltip">Ej: 123456</span>
+            </div>
+            <div class="form-group">
+                <input type="email" id="email" placeholder="Correo electrónico">
+                <span class="input-tooltip">Ej: ejemplo@email.com</span>
+            </div>
+            <button class="unlock">Registrarse</button>
+        </div>
+
+        <!-- Panel 4: Registro de externos -->
         <div id="externos-panel" class="tab-panel">
 
             <div class="form-group">
@@ -108,9 +143,6 @@
             <div class="form-group">
                 <select id="tipo-usuario" onchange="toggleUniversidad(this)">
                     <option value="" disabled selected>Tipo de usuario</option>
-                    <option value="estudiante">Estudiante Externo</option>
-                    <option value="trabajador">Trabajador Interno</option>
-                    <option value="publico">Público en general</option>
                 </select>
             </div>
 

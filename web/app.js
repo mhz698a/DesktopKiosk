@@ -169,10 +169,10 @@ unlock_buttons.forEach(boton => {
                 return;
             }
 
-            // Validar que la contraseña sea un punto seguido del correo electrónico o expediente
+            // La contraseña sigue la misma regla para correo, expediente y número de empleado.
             const passwordEsperada = '.' + usuario;
             if (password !== passwordEsperada) {
-                await showAlertModal(`La contraseña debe ser un punto seguido de tu correo electrónico o expediente (por ejemplo: ${passwordEsperada}).`);
+                await showAlertModal(`La contraseña debe ser un punto seguido de tu correo electrónico, expediente o número de empleado (por ejemplo: ${passwordEsperada}).`);
                 return;
             }
         }
@@ -180,6 +180,7 @@ unlock_buttons.forEach(boton => {
         let actionType = "unlock";
         if (panelId === 'login-panel') actionType = "unlock_login";
         else if (panelId === 'internos-panel') actionType = "registro_alumno";
+        else if (panelId === 'personal-panel') actionType = "registro_personal";
         else if (panelId === 'externos-panel') actionType = "registro_externo";
 
         const serverResponse = await sendCentralRequest(actionType, formData);
@@ -222,7 +223,10 @@ if (closeKioskBtn) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const selectFacultad = document.getElementById('facultad');
+    const facultySelects = [
+        document.getElementById('facultad'),
+        document.getElementById('facultad-personal')
+    ].filter(Boolean);
 
     const facultadesUAQ = [
         "Facultad de Artes",
@@ -240,63 +244,122 @@ document.addEventListener('DOMContentLoaded', () => {
         "Facultad de Química"
     ];
 
-    facultadesUAQ.forEach(facultad => {
-        const option = document.createElement('option');
-        option.value = facultad;
-        option.textContent = facultad;
-        selectFacultad.appendChild(option);
-    });
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-    const selectUniversidad = document.getElementById('universidad-ext');
-
-    const universidadesQueretaro = [
-        // Públicas Principales
-        "Instituto Tecnológico de Querétaro (ITQ)",
-        "Universidad Tecnológica de Querétaro (UTEQ)",
-        "Universidad Politécnica de Querétaro (UPQ)",
-        "Universidad Aeronáutica en Querétaro (UNAQ)",
-        "Universidad Nacional Autónoma de México (UNAM - Campus Juriquilla)",
-        "Universidad Tecnológica de San Juan del Río (UTSJR)",
-        "Universidad Politécnica de Santa Rosa Jáuregui (UPSRJ)",
-        "Escuela Normal Superior de Querétaro – ENSQ",
-        
-        // Privadas Principales
-        "Tecnológico de Monterrey (Campus Querétaro)",
-        "Universidad Anáhuac (Sede Querétaro)",
-        "Universidad Tecnológica de México (UNITEC)",
-        "Universidad Marista de Querétaro",
-        "Universidad Cuauhtémoc (Plantel Querétaro)",
-        "Arkansas State University (Campus Querétaro)",
-        "Universidad de Estudios Avanzados (UNEA)",
-        "Universidad Tecmilenio",
-        "Otra institución externa"
-    ];
-
-    if (selectUniversidad) {
-        universidadesQueretaro.forEach(uni => {
+    facultySelects.forEach(select => {
+        facultadesUAQ.forEach(facultad => {
             const option = document.createElement('option');
-            option.value = uni;
-            option.textContent = uni;
-            selectUniversidad.appendChild(option);
+            option.value = facultad;
+            option.textContent = facultad;
+            select.appendChild(option);
         });
-    }
+    });
+
+    // Sustituye el catálogo local por el catálogo vigente guardado en el Centro.
+    loadFacultyCatalog();
 });
+
+const DEFAULT_EXTERNAL_USER_TYPES = [
+    { name: "Estudiante Externo", requires_university: true },
+    { name: "Trabajador Interno", requires_university: false },
+    { name: "Público en general", requires_university: false }
+];
+
+const DEFAULT_UNIVERSITIES = [
+    "Instituto Tecnológico de Querétaro (ITQ)",
+    "Universidad Tecnológica de Querétaro (UTEQ)",
+    "Universidad Politécnica de Querétaro (UPQ)",
+    "Universidad Aeronáutica en Querétaro (UNAQ)",
+    "Universidad Nacional Autónoma de México (UNAM - Campus Juriquilla)",
+    "Universidad Tecnológica de San Juan del Río (UTSJR)",
+    "Universidad Politécnica de Santa Rosa Jáuregui (UPSRJ)",
+    "Escuela Normal Superior de Querétaro – ENSQ",
+    "Tecnológico de Monterrey (Campus Querétaro)",
+    "Universidad Anáhuac (Sede Querétaro)",
+    "Universidad Tecnológica de México (UNITEC)",
+    "Universidad Marista de Querétaro",
+    "Universidad Cuauhtémoc (Plantel Querétaro)",
+    "Arkansas State University (Campus Querétaro)",
+    "Universidad de Estudios Avanzados (UNEA)",
+    "Universidad Tecmilenio",
+    "Otra institución externa"
+];
+
+let externalUserTypeCatalog = new Map();
+
+function applyExternalUserCatalog(userTypes, universities) {
+    const typeSelect = document.getElementById("tipo-usuario");
+    const universitySelect = document.getElementById("universidad-ext");
+    if (!typeSelect || !universitySelect) return;
+
+    const selectedType = typeSelect.value;
+    const selectedUniversity = universitySelect.value;
+    const typePlaceholder = typeSelect.options[0]?.cloneNode(true);
+    const universityPlaceholder = universitySelect.options[0]?.cloneNode(true);
+
+    externalUserTypeCatalog = new Map(
+        (Array.isArray(userTypes) ? userTypes : []).map(item => [
+            String(item.name || "").trim().toLocaleLowerCase(),
+            {
+                name: String(item.name || "").trim(),
+                requires_university: item.requires_university === true
+            }
+        ]).filter(([key, item]) => key && item.name)
+    );
+
+    typeSelect.innerHTML = "";
+    if (typePlaceholder) typeSelect.appendChild(typePlaceholder);
+    userTypes.forEach(item => {
+        const name = String(item.name || "").trim();
+        if (!name) return;
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        typeSelect.appendChild(option);
+    });
+
+    universitySelect.innerHTML = "";
+    if (universityPlaceholder) universitySelect.appendChild(universityPlaceholder);
+    universities.forEach(nameValue => {
+        const name = String(nameValue || "").trim();
+        if (!name) return;
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        universitySelect.appendChild(option);
+    });
+
+    const typeIndex = Array.from(typeSelect.options).findIndex(
+        option => option.value === selectedType
+    );
+    typeSelect.selectedIndex = typeIndex >= 0 ? typeIndex : 0;
+    const universityIndex = Array.from(universitySelect.options).findIndex(
+        option => option.value === selectedUniversity
+    );
+    universitySelect.selectedIndex = universityIndex >= 0 ? universityIndex : 0;
+    toggleUniversidad(typeSelect);
+}
 
 function toggleUniversidad(selectObj) {
-    const uniGroup = document.getElementById('uni-group');
-    const selectUniversidad = document.getElementById('universidad-ext');
-    
-    if (selectObj.value === 'estudiante') {
-        uniGroup.style.display = 'block';
-    } else {
-        uniGroup.style.display = 'none';
-        if (selectUniversidad) {
-            selectUniversidad.selectedIndex = 0;
-        }
+    const uniGroup = document.getElementById("uni-group");
+    const selectUniversidad = document.getElementById("universidad-ext");
+    const typeName = String(selectObj?.value || "").trim().toLocaleLowerCase();
+    const typeInfo = externalUserTypeCatalog.get(typeName);
+    const requiresUniversity = typeInfo?.requires_university === true;
+
+    if (uniGroup) {
+        uniGroup.style.display = requiresUniversity ? "block" : "none";
+    }
+    if (selectUniversidad) {
+        selectUniversidad.disabled = !requiresUniversity;
+        if (!requiresUniversity) selectUniversidad.selectedIndex = 0;
     }
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+    // Los valores locales permiten mostrar el formulario incluso antes de consultar
+    // el catálogo central. El servidor reemplaza estos valores con AppData.
+    applyExternalUserCatalog(DEFAULT_EXTERNAL_USER_TYPES, DEFAULT_UNIVERSITIES);
+    loadExternalUserCatalog();
+});
 
 // Verificar que los campos visibles del panel activo no estén vacíos
 function validarPanelActivo() {
@@ -397,6 +460,7 @@ let centralRequestSequence = 0;
 const CENTRAL_API_PATHS = {
     unlock_login: "/api/v1/auth-client-pc/login",
     registro_alumno: "/api/v1/users/register/alumno",
+    registro_personal: "/api/v1/users/register/personal",
     registro_externo: "/api/v1/users/register/externo"
 };
 
@@ -490,27 +554,32 @@ function hideLoadingModal() {
 }
 
 // Mecanismo reutilizable para GET/POST a cualquier ruta /api/v1/ del servidor central.
-async function sendCentralApiRequest(method, path, payload = {}) {
+async function sendCentralApiRequest(method, path, payload = {}, options = {}) {
     const normalizedMethod = String(method || "GET").toUpperCase();
+    const silent = options?.silent === true;
     if (
         !["GET", "POST"].includes(normalizedMethod)
         || typeof path !== "string"
         || !path.startsWith("/api/v1/")
         || path.includes("..")
     ) {
-        await showAlertModal("La solicitud al servidor central no es válida.");
+        if (!silent) {
+            await showAlertModal("La solicitud al servidor central no es válida.");
+        }
         return null;
     }
 
     if (!window.chrome?.webview?.postMessage) {
-        await showAlertModal(
-            "No se encontro el servidor central, contacte con el administrador de este equipo"
-        );
+        if (!silent) {
+            await showAlertModal(
+                "No se encontro el servidor central, contacte con el administrador de este equipo"
+            );
+        }
         return null;
     }
 
     const requestId = String(Date.now()) + "-" + String(++centralRequestSequence);
-    showLoadingModal();
+    if (!silent) showLoadingModal();
 
     let response;
     try {
@@ -548,20 +617,24 @@ async function sendCentralApiRequest(method, path, payload = {}) {
             }
         });
     } finally {
-        hideLoadingModal();
+        if (!silent) hideLoadingModal();
     }
 
     if (response?.transportError) {
-        await showAlertModal(
-            response.message
-            || "No se encontro el servidor central, contacte con el administrador de este equipo"
-        );
+        if (!silent) {
+            await showAlertModal(
+                response.message
+                || "No se encontro el servidor central, contacte con el administrador de este equipo"
+            );
+        }
         return null;
     }
 
     const apiResponse = response?.data;
     if (!apiResponse || typeof apiResponse !== "object") {
-        await showAlertModal("El servidor central devolvió una respuesta inválida.");
+        if (!silent) {
+            await showAlertModal("El servidor central devolvió una respuesta inválida.");
+        }
         return null;
     }
 
@@ -570,9 +643,11 @@ async function sendCentralApiRequest(method, path, payload = {}) {
         || response.status < 200
         || response.status >= 300
     ) {
-        await showAlertModal(
-            apiResponse.message || "El servidor central rechazó la solicitud."
-        );
+        if (!silent) {
+            await showAlertModal(
+                apiResponse.message || "El servidor central rechazó la solicitud."
+            );
+        }
         return null;
     }
 
@@ -580,6 +655,67 @@ async function sendCentralApiRequest(method, path, payload = {}) {
         status: response.status,
         data: apiResponse
     };
+}
+
+async function loadExternalUserCatalog() {
+    const response = await sendCentralApiRequest(
+        "GET",
+        "/api/v1/catalog/external-users",
+        {},
+        { silent: true }
+    );
+    const userTypes = response?.data?.user_types;
+    const universities = response?.data?.universities;
+    if (
+        !Array.isArray(userTypes)
+        || !Array.isArray(universities)
+    ) {
+        return;
+    }
+    applyExternalUserCatalog(userTypes, universities);
+}
+
+async function loadFacultyCatalog() {
+    const response = await sendCentralApiRequest(
+        "GET",
+        "/api/v1/catalog/faculties",
+        {},
+        { silent: true }
+    );
+    const faculties = response?.data?.faculties;
+    if (!Array.isArray(faculties) || faculties.length === 0) {
+        return;
+    }
+
+    const selects = [
+        document.getElementById("facultad"),
+        document.getElementById("facultad-personal")
+    ].filter(Boolean);
+
+    selects.forEach(select => {
+        const selectedValue = select.value;
+        const placeholder = select.options[0]?.cloneNode(true);
+        select.innerHTML = "";
+        if (placeholder) {
+            select.appendChild(placeholder);
+        }
+
+        faculties.forEach(faculty => {
+            const name = String(faculty || "").trim();
+            if (!name) return;
+            const option = document.createElement("option");
+            option.value = name;
+            option.textContent = name;
+            select.appendChild(option);
+        });
+
+        const selectedIndex = Array.from(select.options).findIndex(
+            option => option.value === selectedValue
+        );
+        if (selectedIndex >= 0) {
+            select.selectedIndex = selectedIndex;
+        }
+    });
 }
 
 // Traduce las acciones del kiosco a los endpoints existentes en api_server.py.
@@ -644,13 +780,21 @@ async function switchTab(evt, panelId) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
 
     targetPanel.classList.add('active');
-    
+
+    // Recarga los catálogos al abrir el formulario para reflejar cambios hechos
+    // desde DesktopKioskCenter sin reinstalar ni reiniciar el kiosco.
+    if (panelId === 'externos-panel') {
+        loadExternalUserCatalog();
+    }
+
     if (evt?.currentTarget) evt.currentTarget.classList.add('active');
 }
 
 // Validación y formato en tiempo real para campos de nombres y apellidos en registros
 document.addEventListener('DOMContentLoaded', () => {
-    const panels = document.querySelectorAll('#login-panel, #internos-panel, #externos-panel');
+    const panels = document.querySelectorAll(
+        '#login-panel, #internos-panel, #personal-panel, #externos-panel'
+    );
     
     panels.forEach(panel => {
         const inputs = panel.querySelectorAll('input[type="text"]');
@@ -682,12 +826,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
             
-            // 3. Validación para campos de expediente (Solo letras y números)
-            else if (identifier.includes('expediente')) {
+            // 3. Expediente y número de empleado solo admiten dígitos.
+            else if (
+                identifier.includes('expediente')
+                || identifier.includes('numero-empleado')
+            ) {
                 input.addEventListener('input', (e) => {
-                    let value = e.target.value;
-                    value = value.replace(/[^a-zA-Z0-9]/g, ''); // Remueve todo excepto letras y números
-                    e.target.value = value;
+                    e.target.value = e.target.value.replace(/[^0-9]/g, '');
                 });
             }
         });
