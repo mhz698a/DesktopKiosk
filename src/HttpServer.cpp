@@ -565,6 +565,8 @@ public:
 
             const bool supportedUserType =
                 userType == QStringLiteral("Alumno interno")
+                || userType == QStringLiteral("Docente")
+                || userType == QStringLiteral("Administrativo")
                 || userType == QStringLiteral("Público en general");
             if (displayName.isEmpty() || displayName.size() > 180
                 || identifier.isEmpty() || identifier.size() > 255
